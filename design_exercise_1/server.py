@@ -128,13 +128,15 @@ if __name__ == '__main__':
                 del clients[sockt] 
                 continue
 
-            for sockt, info in clients.items():
+            for dest_sockt, info in clients.items():
                if info['username'] in message_content['destinataries']:
-                  sockt.send(
-                     message_content['username_hdr'] + 
-                     message_content['username'].encode('utf-8') + 
-                     message_content['message_hdr'] + 
-                     message_content['message'])
+                dest_sockt.send(
+                    message_content['username_hdr'] + 
+                    message_content['username'].encode('utf-8') + 
+                    message_content['message_hdr'] + 
+                    message_content['message'])
+
+                print(f"Message sent from user {clients[sockt]['username']} to {info['username']}: {message_content['message'].decode('utf-8').strip()}")
                   
                
                
