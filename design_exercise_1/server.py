@@ -1,7 +1,9 @@
 import socket
 import select
+import time
 
 HOST = socket.gethostname()#'65.112.8.28'
+HOST = "10.250.227.245"
 print(HOST)
 PORT = 6000
 TIMEOUT = 60 # In seconds
@@ -52,6 +54,7 @@ def receive_message(scket):
     
     # Connection Error
     if not (len(username_hdr)):
+        print('username header')
         return False
 
     username_length = int(username_hdr.decode('utf-8').strip())
@@ -61,6 +64,7 @@ def receive_message(scket):
     destinataries_hdr = scket.recv(HDR_DESTINATARIES_SZ)
     # Connection Error
     if not (len(destinataries_hdr)):
+        print('destinataries header')
         return False
 
     destinataries_length = int(destinataries_hdr.decode('utf-8').strip())
@@ -71,6 +75,7 @@ def receive_message(scket):
     
     # Connection Error
     if not (len(message_hdr)):
+        print('message header')
         return False
 
     message_length = int(message_hdr.decode('utf-8').strip())
@@ -80,6 +85,7 @@ def receive_message(scket):
     request_type = scket.recv(HDR_REQUEST_TYPE_SZ).decode('utf-8').strip()
     
     if not (len(request_type)):
+        print('request type')
         return False
     
     return {'username_hdr': username_hdr,
@@ -89,8 +95,9 @@ def receive_message(scket):
             'request_type': request_type,  # decoded
             'destinataries': destinataries} # decoded and converted to list
   
-  except:
-     return False
+  except Exception as e:
+    print('exception', e)
+    return False
 
 if __name__ == '__main__':
  server_socket = server_setup()
@@ -109,8 +116,9 @@ if __name__ == '__main__':
         if sockt == server_socket:
             # Create new socket for send/receive from client
             conn, addr = server_socket.accept()
-
-            message_content = receive_message(sockt)
+            print(conn, addr)
+            message_content = receive_message(conn)
+            print(message_content)
 
             # Add new socket to the list of sockets passed to select
             socket_list.append(conn)
@@ -127,7 +135,7 @@ if __name__ == '__main__':
                 socket_list.remove(sockt)
                 del clients[sockt] 
                 continue
-
+            time.sleep(5)
             for dest_sockt, info in clients.items():
                if info['username'] in message_content['destinataries']:
                 dest_sockt.send(
