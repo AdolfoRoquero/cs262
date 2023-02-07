@@ -159,9 +159,13 @@ if __name__ == '__main__':
             time.sleep(5)
 
             if message_content['message_type'] == 3: 
+                # Message server reply 
+                outbound_message_type = 4  
+
                 for dest_sockt, info in clients.items():
                     if info['username'] in message_content['destinataries']:
                         dest_sockt.send(
+                            outbound_message_type.encode('utf-8') + 
                             message_content['username_hdr'] + 
                             message_content['username'].encode('utf-8') + 
                             message_content['message_hdr'] + 
