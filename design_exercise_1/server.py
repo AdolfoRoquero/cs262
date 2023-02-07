@@ -18,23 +18,15 @@ TIMEOUT = 60 # In seconds
 # MESSAGE -->
 
 # Size of the header that encodes the username size
-HDR_USERNAME_SZ = 2
-# 
+HDR_USERNAME_SZ = 3
 HDR_DESTINATARIES_SZ = 10 
 HDR_MESSAGE_SZ = 3
-HDR_REQUEST_TYPE_SZ = 1
-HDR_SZ = HDR_USERNAME_SZ + HDR_MESSAGE_SZ + HDR_REQUEST_TYPE_SZ
-
-
-# Reply Protocol Definition
-HDR_USERNAME_FROM_SZ = 1
+HDR_REQUEST_TYPE_SZ = 3
 
 
 # Stores existing usernames 
 # Usernames have a length from 1 to 99 chars
-usernames = ['adolfo', 
-             'le', 
-             'jacobo']
+usernames = []
 
 # Key: socket, val: {username: , addr:}
 clients = {}
@@ -56,7 +48,7 @@ def receive_message(scket):
             print('Error: message type header missing')
             return False 
 
-        message_type = int(message_type_hdr.decode('utf-8').strip())
+        message_type = message_type_hdr.decode('utf-8').strip()
 
         # Read username, needed for every message type 
         username_hdr = scket.recv(HDR_USERNAME_SZ)
@@ -71,15 +63,16 @@ def receive_message(scket):
         username = scket.recv(username_length).decode('utf-8').strip()
 
         # Username & message type decoded before returned; values used by other functions 
-        message_content = {'message_type_hdr': message_type, 
+        message_content = {'message_type': message_type, 
+                        'username_hdr': username_hdr,
                         'username': username}
 
         # Login or Signup, only username returned 
-        if message_type == 1 or message_type == 2: 
+        if message_type == '1' or message_type == '2': 
             return message_content
             
         # Message Client Request 
-        elif message_type == 3: 
+        elif message_type == '3': 
 
             destinataries_hdr = scket.recv(HDR_DESTINATARIES_SZ)
 
@@ -134,10 +127,10 @@ if __name__ == '__main__':
             conn, addr = server_socket.accept()
             print(conn, addr)
             message_content = receive_message(conn)
-            print(message_content)
+            print('Message Received', message_content)
 
             # Create new user in database 
-            if message_content['message_type'] == 2: 
+            if message_content['message_type'] == '2': 
                 usernames.append(message_content['username'])
                 print(f"New user {message_content['username']} added to database") 
 
@@ -156,22 +149,23 @@ if __name__ == '__main__':
                 socket_list.remove(sockt)
                 del clients[sockt] 
                 continue
-            time.sleep(5)
+            print('Message Received', message_content)
 
-            if message_content['message_type'] == 3: 
+            if message_content['message_type'] == '3': 
                 # Message server reply 
-                outbound_message_type = 4  
+                outbound_message_type = f"{4:<{HDR_REQUEST_TYPE_SZ}}".encode('utf-8')  
 
                 for dest_sockt, info in clients.items():
                     if info['username'] in message_content['destinataries']:
+                        print(f"trying to send a message to {info['username']}")
                         dest_sockt.send(
-                            outbound_message_type.encode('utf-8') + 
+                            outbound_message_type + 
                             message_content['username_hdr'] + 
                             message_content['username'].encode('utf-8') + 
                             message_content['message_hdr'] + 
                             message_content['encoded_message'])
 
-                        print(f"Message sent from user {clients[sockt]['username']} to {info['username']}: {message_content['message'].decode('utf-8').strip()}")
+                        print(f"Message sent from user {clients[sockt]['username']} to {info['username']}: {message_content['encoded_message'].decode('utf-8').strip()}")
                         
                     
                     
