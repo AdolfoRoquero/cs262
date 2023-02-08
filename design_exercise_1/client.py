@@ -66,12 +66,15 @@ if __name__ == '__main__':
                            username_hdr + busername)
 
     while True:
-        dest = input(f"{username}> Enter destinatary (comma-separated if multiple): ").strip()
-        bdest = dest.encode("utf-8")
-        dest_hdr = f"{len(bdest):<{HDR_DESTINATARIES_SZ}}".encode('utf-8')
+        # wait for message 
+        dest_and_message = input(f"{username}> Enter destinatary (comma-separated if multiple) and message (; in between): ").strip()
+        
 
-        msg = input(f"{username}>Enter text: ")
-        if msg:
+        # msg = input(f"{username}>Enter text: ")
+        if dest_and_message:
+            dest, msg = dest_and_message.split(';')
+            bdest = dest.encode("utf-8")
+            dest_hdr = f"{len(bdest):<{HDR_DESTINATARIES_SZ}}".encode('utf-8')
             bmsg = msg.encode("utf-8")
             message_hdr = f"{len(bmsg):<{HDR_MESSAGE_SZ}}".encode('utf-8')
             
@@ -97,6 +100,8 @@ if __name__ == '__main__':
             if e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK:
                 print(f'Reading Error {e}')
                 sys.exit()
+
+            print("reached continue")
             continue
         except Exception as e:
             print(f'Reading error: {e}')
