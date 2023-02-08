@@ -68,7 +68,7 @@ def receive_message(scket):
                         'username': username}
 
         # Login or Signup, only username returned 
-        if message_type == '1' or message_type == '2': 
+        if message_type == '1' or message_type == '2' or message_type == '3' : 
             return message_content
             
         # Message Client Request 
@@ -166,7 +166,20 @@ if __name__ == '__main__':
                             message_content['encoded_message'])
 
                         print(f"Message sent from user {clients[sockt]['username']} to {info['username']}: {message_content['encoded_message'].decode('utf-8').strip()}")
-                        
+           
+            # LISTALL REQUEST
+            if message_content['message_type'] == '5': 
+                outbound_message_type = f"{6:<{HDR_REQUEST_TYPE_SZ}}".encode('utf-8')
+
+                bdest = ",".join(usernames).encode("utf-8")
+                dest_hdr = f"{len(bdest):<{HDR_DESTINATARIES_SZ}}".encode('utf-8')
+                sockt.send(
+                    outbound_message_type +
+                    dest_hdr +
+                    bdest
+                )
+
+
                     
                     
                

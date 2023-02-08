@@ -16,33 +16,38 @@ def client_setup():
 
 def receive_message(scket):
     msg_type = scket.recv(HDR_REQUEST_TYPE_SZ).decode('utf-8').strip() 
-    print(msg_type)
     if not msg_type:
         print("Error: message type header missing")
         return False
-    
-    sender_username_hdr = scket.recv(HDR_USERNAME_SZ)
-    
-    # Connection Error
-    if not (len(sender_username_hdr)):
-        return False
 
-    sender_username_length = int(sender_username_hdr.decode('utf-8').strip())
-    sender_username = scket.recv(sender_username_length).decode('utf-8').strip()
-
-    message_hdr = scket.recv(HDR_MESSAGE_SZ)
+    message_content = {'message_type': msg_type}
+    if msg_type == '6': 
+        message = scket.recv(HDR_DESTINATARIES_SZ).decode('utf-8').strip()
+        message_content['message'] = message
+        return message_content
     
-    # Connection Error
-    if not (len(message_hdr)):
-        return False
+    else: 
+        sender_username_hdr = scket.recv(HDR_USERNAME_SZ)
+        
+        # Connection Error
+        if not (len(sender_username_hdr)):
+            return False
 
-    message_length = int(message_hdr.decode('utf-8').strip())
-    message = scket.recv(message_length).decode('utf-8').strip()
-    
-    return {
-        'username': sender_username, # decoded
-        'message': message   # decoded
-    }
+        sender_username_length = int(sender_username_hdr.decode('utf-8').strip())
+        sender_username = scket.recv(sender_username_length).decode('utf-8').strip()
+
+        message_hdr = scket.recv(HDR_MESSAGE_SZ)
+        
+        # Connection Error
+        if not (len(message_hdr)):
+            return False
+
+        message_length = int(message_hdr.decode('utf-8').strip())
+        message = scket.recv(message_length).decode('utf-8').strip()
+        
+        message_content['username'] = sender_username
+        message_content['message'] = message
+        return message_content
      
 
 
@@ -61,35 +66,41 @@ if __name__ == '__main__':
     sent = client_soc.send(bmsg_type + 
                            username_hdr + busername)
 
+    print("to send messages, use format destinaries (comma separated); message")
+
     while True:
         # wait for message 
-        dest_and_message = input(f"{username}> Enter destinatary (comma-separated if multiple) and message (; in between): ").strip()
-        
+        dest = input(f"{username}> Destinataries: ").strip()
 
-        # msg = input(f"{username}>Enter text: ")
-        if dest_and_message:
-            dest, msg = dest_and_message.split(';')
-            bdest = dest.encode("utf-8")
-            dest_hdr = f"{len(bdest):<{HDR_DESTINATARIES_SZ}}".encode('utf-8')
-            bmsg = msg.encode("utf-8")
-            message_hdr = f"{len(bmsg):<{HDR_MESSAGE_SZ}}".encode('utf-8')
-            
-            msg_type = '3'
+        if dest == "listall":
+            msg_type = '5'
             bmsg_type = f"{msg_type:<{HDR_REQUEST_TYPE_SZ}}".encode("utf-8")
-            sent = client_soc.send(bmsg_type + 
-                                username_hdr + busername +
-                                dest_hdr + bdest +
-                                message_hdr + bmsg)
-            
-            print('Message sent, %d/%d bytes transmitted' % (sent, len(msg)))
+            sent = client_soc.send(bmsg_type + username_hdr + busername)
+            print('Listall request sent, %d bytes transmitted' % (sent))
+    
+        elif dest:
+            msg = input(f"{username}> Message: ").strip()
+            if msg:
+                bdest = dest.encode("utf-8")
+                dest_hdr = f"{len(bdest):<{HDR_DESTINATARIES_SZ}}".encode('utf-8')
+                bmsg = msg.encode("utf-8")
+                message_hdr = f"{len(bmsg):<{HDR_MESSAGE_SZ}}".encode('utf-8')
+                
+                msg_type = '3'
+                bmsg_type = f"{msg_type:<{HDR_REQUEST_TYPE_SZ}}".encode("utf-8")
+                sent = client_soc.send(bmsg_type + 
+                                    username_hdr + busername +
+                                    dest_hdr + bdest +
+                                    message_hdr + bmsg)
+                
+                print('Message sent, %d/%d bytes transmitted' % (sent, len(msg)))
 
 
         try:
             while True:
                 content = receive_message(client_soc)
                 if content:
-                    print(f'Message received from user: {content["username"]}')
-                    print(content["message"])
+                    print(f'{content["username"]} > {content["message"]}')
 
 
         except IOError as e:
@@ -97,7 +108,6 @@ if __name__ == '__main__':
                 print(f'Reading Error {e}')
                 sys.exit()
 
-            print("reached continue")
             continue
         except Exception as e:
             print(f'Reading error: {e}')
