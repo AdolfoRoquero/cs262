@@ -15,7 +15,6 @@ def client_setup():
     return client_socket
 
 def receive_message(scket):
-  try:
     msg_type = scket.recv(HDR_REQUEST_TYPE_SZ).decode('utf-8').strip() 
     print(msg_type)
     if not msg_type:
@@ -45,9 +44,6 @@ def receive_message(scket):
         'message': message   # decoded
     }
      
-  
-  except:
-     return False
 
 
 if __name__ == '__main__':
