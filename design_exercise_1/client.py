@@ -21,9 +21,13 @@ def receive_message(scket):
         return False
 
     message_content = {'message_type': msg_type}
+    print(msg_type)
     if msg_type == '6': 
-        message = scket.recv(HDR_DESTINATARIES_SZ).decode('utf-8').strip()
+        message_length = int(scket.recv(HDR_DESTINATARIES_SZ).decode('utf-8').strip())
+        message = scket.recv(message_length).decode('utf-8').split(',')
+
         message_content['message'] = message
+        print(message_content)
         return message_content
     
     else: 
@@ -79,6 +83,7 @@ if __name__ == '__main__':
             print('Listall request sent, %d bytes transmitted' % (sent))
     
         elif dest:
+            print('elif')
             msg = input(f"{username}> Message: ").strip()
             if msg:
                 bdest = dest.encode("utf-8")
@@ -100,16 +105,21 @@ if __name__ == '__main__':
             while True:
                 content = receive_message(client_soc)
                 if content:
-                    print(f'{content["username"]} > {content["message"]}')
+                    if content['message_type'] == '6': 
+                        print(f'{username} > {",".join(content["message"])}')
+                    else: 
+                        print(f'{content["username"]} > {content["message"]}')
 
 
         except IOError as e:
             if e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK:
+                print('e2')
                 print(f'Reading Error {e}')
                 sys.exit()
 
             continue
         except Exception as e:
+            print('here')
             print(f'Reading error: {e}')
             sys.exit()
 

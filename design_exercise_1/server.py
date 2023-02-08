@@ -68,7 +68,7 @@ def receive_message(scket):
                         'username': username}
 
         # Login or Signup, only username returned 
-        if message_type == '1' or message_type == '2' or message_type == '3' : 
+        if message_type == '1' or message_type == '2' or message_type == '5' : 
             return message_content
             
         # Message Client Request 
