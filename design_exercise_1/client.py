@@ -21,11 +21,15 @@ def receive_message(scket):
         return False
 
     message_content = {'message_type': msg_type}
-
     if msg_type == SRV_LISTALL: 
         message_length = int(scket.recv(DESTINATARIES_HDR_SZ).decode('utf-8').strip())
         message = scket.recv(message_length).decode('utf-8').split(',')
-
+        message_content['message'] = message
+        return message_content
+    
+    elif msg_type == SRV_DEL_USER:
+        message_length = int(scket.recv(MSG_HDR_SZ).decode('utf-8').strip())
+        message = scket.recv(message_length).decode('utf-8')
         message_content['message'] = message
         return message_content
     
@@ -92,6 +96,12 @@ if __name__ == '__main__':
             sent = client_socket.send(bmsg_type + username_hdr + busername + 
                                       username_filter_hdr + busername_filter)
             print('Listall request sent, %d bytes transmitted' % (sent))
+        
+        elif dest == "delete_user":
+            msg_type = CL_DEL_USER
+            bmsg_type = f"{msg_type:<{MSG_TYPE_HDR_SZ}}".encode("utf-8")
+            sent = client_socket.send(bmsg_type + username_hdr + busername)
+            print('Delete user request sent, %d bytes transmitted' % (sent))
     
         elif dest:
             msg = input(f"{username}> Message: ").strip()
@@ -117,6 +127,11 @@ if __name__ == '__main__':
                 if content:
                     if content['message_type'] == SRV_LISTALL: 
                         print(f'{username} > {",".join(content["message"])}')
+                    elif content['message_type'] == SRV_DEL_USER:
+                        if content['message'] == "Success":
+                            print(f"User {username} deleted. Closing Connection")
+                            client_socket.close()
+                            sys.exit()
                     else: 
                         print(f'{content["username"]} > {content["message"]}')
 
