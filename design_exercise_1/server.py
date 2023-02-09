@@ -52,7 +52,13 @@ def receive_message(scket):
                         'username': username}
 
         # Login or Signup, only username returned 
-        if message_type in [CL_LOGIN, CL_SIGNUP, CL_LISTALL]: 
+        if message_type in [CL_LOGIN, CL_SIGNUP]: 
+            return message_content
+
+        elif message_type == CL_LISTALL: 
+            filter_length = int(scket.recv(MSG_HDR_SZ).decode('utf-8').strip())
+            username_filter = scket.recv(filter_length).decode('utf-8')
+            message_content['username_filter'] = username_filter
             return message_content
             
         # Message Client Request 
@@ -154,8 +160,8 @@ if __name__ == '__main__':
             # LISTALL REQUEST
             if message_content['message_type'] == CL_LISTALL: 
                 outbound_message_type = f"{SRV_LISTALL:<{MSG_TYPE_HDR_SZ}}".encode('utf-8')
-
-                bdest = ",".join(usernames).encode("utf-8")
+                filtered_usernames = [name for name in usernames if name.startswith(message_content['username_filter'])]
+                bdest = ",".join(filtered_usernames).encode("utf-8")
                 dest_hdr = f"{len(bdest):<{DESTINATARIES_HDR_SZ}}".encode('utf-8')
                 sockt.send(
                     outbound_message_type +
