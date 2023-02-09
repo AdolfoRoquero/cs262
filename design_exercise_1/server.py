@@ -135,9 +135,9 @@ if __name__ == '__main__':
                 continue
             print('Message Received', message_content)
 
-            if message_content['message_type'] == '3': 
+            if message_content['message_type'] == CL_SEND_MSG: 
                 # Message server reply 
-                outbound_message_type = f"{4:<{MSG_TYPE_HDR_SZ}}".encode('utf-8')  
+                outbound_message_type = f"{SRV_FORWARD_MSG:<{MSG_TYPE_HDR_SZ}}".encode('utf-8')  
 
                 for dest_sockt, info in clients.items():
                     if info['username'] in message_content['destinataries']:
