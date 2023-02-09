@@ -1,7 +1,7 @@
 from datetime import datetime
 from flask import Flask, render_template, url_for, flash, redirect, request
 from forms import RegistrationForm, LoginForm, NewMessageForm
-from flask_login import LoginManager, login_user, current_user, logout_user, login_required
+from flask_login import LoginManager, UserMixin, login_user, current_user, logout_user, login_required
 
 
 app = Flask(__name__)
@@ -9,14 +9,24 @@ app.config['SECRET_KEY'] = '5791628bb0b13ce0c676dfde280ba245'
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message_category = 'info'
-users = ['Adolfo', 'Leticia', 'Jacobo']
+
+class User(UserMixin):
+    def __init__(self, name):
+        self.id = name
+
+usernames = ['Adolfo', 'Leticia', 'Jacobo']
+user_obj = [User(username) for username in usernames]
 
 
 # Decorator such that the login_manager extension knows
 # that this is the function to get a user by id
 @login_manager.user_loader
-def load_user(username):
-    return username if username in users else None
+def load_user(user_id):
+    print("Load user")
+    if user_id in usernames:
+        obj_ind = usernames.index(user_id)
+        return user_obj[obj_ind]
+    return None
 
 posts = [
     {
@@ -34,8 +44,6 @@ posts = [
 ]
 
 
-
-
 @app.route("/register", methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated:
@@ -49,16 +57,13 @@ def register():
 @app.route("/")
 @app.route("/login", methods=['GET', 'POST'])
 def login():
-    print("Hello ")
     if current_user.is_authenticated:
         return redirect(url_for('wall'))
     form = LoginForm()
-    print("After form")
     if form.validate_on_submit():
-        print(form.username.data)
-        if form.username.data in users:
-            print("Login user")
-            login_user(form.username.data, remember=form.remember.data)
+        if form.username.data in usernames:
+            obj_ind = usernames.index(form.username.data)
+            login_user(user_obj[obj_ind], remember=form.remember.data)
             next_page = request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('wall'))
         else:

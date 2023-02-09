@@ -15,15 +15,15 @@ def client_setup():
     return client_socket
 
 def receive_message(scket):
-    msg_type = scket.recv(HDR_REQUEST_TYPE_SZ).decode('utf-8').strip() 
+    msg_type = scket.recv(MSG_TYPE_HDR_SZ).decode('utf-8').strip() 
     if not msg_type:
         print("Error: message type header missing")
         return False
 
     message_content = {'message_type': msg_type}
     print(msg_type)
-    if msg_type == '6': 
-        message_length = int(scket.recv(HDR_DESTINATARIES_SZ).decode('utf-8').strip())
+    if msg_type == SRV_LISTALL: 
+        message_length = int(scket.recv(DESTINATARIES_HDR_SZ).decode('utf-8').strip())
         message = scket.recv(message_length).decode('utf-8').split(',')
 
         message_content['message'] = message
@@ -31,7 +31,7 @@ def receive_message(scket):
         return message_content
     
     else: 
-        sender_username_hdr = scket.recv(HDR_USERNAME_SZ)
+        sender_username_hdr = scket.recv(USERNAME_HDR_SZ)
         
         # Connection Error
         if not (len(sender_username_hdr)):
@@ -40,7 +40,7 @@ def receive_message(scket):
         sender_username_length = int(sender_username_hdr.decode('utf-8').strip())
         sender_username = scket.recv(sender_username_length).decode('utf-8').strip()
 
-        message_hdr = scket.recv(HDR_MESSAGE_SZ)
+        message_hdr = scket.recv(MSG_HDR_SZ)
         
         # Connection Error
         if not (len(message_hdr)):
@@ -56,18 +56,24 @@ def receive_message(scket):
 
 
 if __name__ == '__main__':
-    client_soc = client_setup()
-    new_or_existing = input("New or existing user (N or E): ").strip()
-    client_msg_type = '1' if new_or_existing == 'E' else ('2' if new_or_existing == 'N' else '-1')
-    assert client_msg_type != '-1', "Error in msg type"
-    bmsg_type = f"{client_msg_type:<{HDR_REQUEST_TYPE_SZ}}".encode("utf-8")
+    client_socket = client_setup()
+    while True:
+        new_or_existing = input("New or existing user (N or E): ").strip()
+        if new_or_existing == 'E':
+            client_msg_type = CL_LOGIN  
+            break
+        elif new_or_existing == 'N':
+            client_msg_type = CL_SIGNUP
+            break
+
+    bmsg_type = f"{client_msg_type:<{MSG_TYPE_HDR_SZ}}".encode("utf-8")
 
 
     username = input("Enter username: ").strip()
     busername = username.encode("utf-8")
-    username_hdr = f"{len(busername):<{HDR_USERNAME_SZ}}".encode('utf-8')
+    username_hdr = f"{len(busername):<{USERNAME_HDR_SZ}}".encode('utf-8')
 
-    sent = client_soc.send(bmsg_type + 
+    sent = client_socket.send(bmsg_type + 
                            username_hdr + busername)
 
     print("to send messages, use format destinaries (comma separated); message")
@@ -77,23 +83,22 @@ if __name__ == '__main__':
         dest = input(f"{username}> Destinataries: ").strip()
 
         if dest == "listall":
-            msg_type = '5'
-            bmsg_type = f"{msg_type:<{HDR_REQUEST_TYPE_SZ}}".encode("utf-8")
-            sent = client_soc.send(bmsg_type + username_hdr + busername)
+            msg_type = CL_LISTALL
+            bmsg_type = f"{msg_type:<{MSG_TYPE_HDR_SZ}}".encode("utf-8")
+            sent = client_socket.send(bmsg_type + username_hdr + busername)
             print('Listall request sent, %d bytes transmitted' % (sent))
     
         elif dest:
-            print('elif')
             msg = input(f"{username}> Message: ").strip()
             if msg:
                 bdest = dest.encode("utf-8")
-                dest_hdr = f"{len(bdest):<{HDR_DESTINATARIES_SZ}}".encode('utf-8')
+                dest_hdr = f"{len(bdest):<{DESTINATARIES_HDR_SZ}}".encode('utf-8')
                 bmsg = msg.encode("utf-8")
-                message_hdr = f"{len(bmsg):<{HDR_MESSAGE_SZ}}".encode('utf-8')
+                message_hdr = f"{len(bmsg):<{MSG_HDR_SZ}}".encode('utf-8')
                 
-                msg_type = '3'
-                bmsg_type = f"{msg_type:<{HDR_REQUEST_TYPE_SZ}}".encode("utf-8")
-                sent = client_soc.send(bmsg_type + 
+                msg_type = CL_SEND_MSG
+                bmsg_type = f"{msg_type:<{MSG_TYPE_HDR_SZ}}".encode("utf-8")
+                sent = client_socket.send(bmsg_type + 
                                     username_hdr + busername +
                                     dest_hdr + bdest +
                                     message_hdr + bmsg)
@@ -103,9 +108,9 @@ if __name__ == '__main__':
 
         try:
             while True:
-                content = receive_message(client_soc)
+                content = receive_message(client_socket)
                 if content:
-                    if content['message_type'] == '6': 
+                    if content['message_type'] == SRV_LISTALL: 
                         print(f'{username} > {",".join(content["message"])}')
                     else: 
                         print(f'{content["username"]} > {content["message"]}')
