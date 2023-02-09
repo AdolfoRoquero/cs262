@@ -52,14 +52,14 @@ def receive_message(scket):
                         'username': username}
 
         # Login or Signup, only username returned 
-        if message_type in [CL_LOGIN, CL_SIGNUP]: 
+        if message_type in [CL_LOGIN, CL_SIGNUP, CL_DEL_USER]: 
             return message_content
 
         elif message_type == CL_LISTALL: 
             filter_length = int(scket.recv(MSG_HDR_SZ).decode('utf-8').strip())
             username_filter = scket.recv(filter_length).decode('utf-8')
             message_content['username_filter'] = username_filter
-            return message_content
+            return message_content    
             
         # Message Client Request 
         elif message_type == CL_SEND_MSG: 
@@ -143,13 +143,13 @@ if __name__ == '__main__':
 
             if message_content['message_type'] == CL_SEND_MSG: 
                 # Message server reply 
-                outbound_message_type = f"{SRV_FORWARD_MSG:<{MSG_TYPE_HDR_SZ}}".encode('utf-8')  
+                msg_type = f"{SRV_FORWARD_MSG:<{MSG_TYPE_HDR_SZ}}".encode('utf-8')  
 
                 for dest_sockt, info in clients.items():
                     if info['username'] in message_content['destinataries']:
                         print(f"trying to send a message to {info['username']}")
                         dest_sockt.send(
-                            outbound_message_type + 
+                            msg_type + 
                             message_content['username_hdr'] + 
                             message_content['username'].encode('utf-8') + 
                             message_content['message_hdr'] + 
@@ -159,15 +159,29 @@ if __name__ == '__main__':
            
             # LISTALL REQUEST
             if message_content['message_type'] == CL_LISTALL: 
-                outbound_message_type = f"{SRV_LISTALL:<{MSG_TYPE_HDR_SZ}}".encode('utf-8')
+                msg_type = f"{SRV_LISTALL:<{MSG_TYPE_HDR_SZ}}".encode('utf-8')
                 filtered_usernames = [name for name in usernames if name.startswith(message_content['username_filter'])]
                 bdest = ",".join(filtered_usernames).encode("utf-8")
                 dest_hdr = f"{len(bdest):<{DESTINATARIES_HDR_SZ}}".encode('utf-8')
                 sockt.send(
-                    outbound_message_type +
+                    msg_type +
                     dest_hdr +
                     bdest
                 )
+
+            # DELETE USER REQUEST 
+            if message_content['message_type'] == CL_DEL_USER: 
+                print(f"Delete user request from user: {clients[sockt]['username']} at {clients[sockt]['addr'][0]}:{clients[sockt]['addr'][1]}")
+                socket_list.remove(sockt)
+                usernames.remove(clients[sockt]['username'])
+                del clients[sockt] 
+                print(usernames)
+                msg_type = f"{SRV_DEL_USER:<{MSG_TYPE_HDR_SZ}}".encode('utf-8')
+                msg = "Success" 
+                bmsg = msg.encode('utf-8')
+                bmsg_hdr = f"{len(bmsg):<{MSG_HDR_SZ}}".encode('utf-8')
+                sent = sockt.send(msg_type + bmsg_hdr + bmsg)
+                print('Message sent, %d/%d bytes transmitted' % (sent, len(msg))) 
 
 
                     
