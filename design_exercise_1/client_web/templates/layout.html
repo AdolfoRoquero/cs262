@@ -25,15 +25,21 @@
             <span class="navbar-toggler-icon"></span>
           </button>
           <div class="collapse navbar-collapse" id="navbarToggle">
-            <div class="navbar-nav mr-auto">
-              <a class="nav-item nav-link" href="{{ url_for('wall') }}">Wall</a>
-              <a class="nav-item nav-link" href="{{ url_for('new_message') }}">Send Message</a>
-            </div>
+            
+            {% if current_user.is_authenticated %}
             <!-- Navbar Right Side -->
             <div class="navbar-nav">
-              <a class="nav-item nav-link" href="{{ url_for('login') }}">Login</a>
-              <a class="nav-item nav-link" href="{{ url_for('register') }}">Register</a>
+                <a class="nav-item nav-link" href="{{ url_for('wall') }}">Wall</a>
+                <a class="nav-item nav-link" href="{{ url_for('new_message') }}">Send Message</a>
+                <a class="nav-item nav-link" href="{{ url_for('logout') }}">Logout</a>
+            <div> 
+            
+            {% else %}
+            <div class="navbar-nav">
+                <a class="nav-item nav-link" href="{{ url_for('login') }}">Login</a>
+                <a class="nav-item nav-link" href="{{ url_for('register') }}">Register</a>
             </div>
+            {% endif %}
           </div>
         </div>
       </nav>

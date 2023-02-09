@@ -1,28 +1,12 @@
 import socket
 import select
 import time
+from protocol import *
 
 HOST = socket.gethostname()#'65.112.8.28'
 HOST = "10.250.227.245"
-print(HOST)
 PORT = 6000
 TIMEOUT = 60 # In seconds
-
-# Request Protocol Definition
-# HEADER:
-# USERNAME_LENGTH -->  16 byte
-# MESSAGE_LENGTH -->  150 byte
-# TYPE_REQUEST --> 1 byte
-# DATA:
-# USERNAME --> 
-# MESSAGE -->
-
-# Size of the header that encodes the username size
-HDR_USERNAME_SZ = 3
-HDR_DESTINATARIES_SZ = 10 
-HDR_MESSAGE_SZ = 3
-HDR_REQUEST_TYPE_SZ = 3
-
 
 # Stores existing usernames 
 # Usernames have a length from 1 to 99 chars
@@ -41,7 +25,7 @@ def server_setup():
 def receive_message(scket):
     try:
         # Read type of message 
-        message_type_hdr = scket.recv(HDR_REQUEST_TYPE_SZ)
+        message_type_hdr = scket.recv(MSG_TYPE_HDR_SZ)
 
         # Connection Error 
         if not len(message_type_hdr): 
@@ -51,7 +35,7 @@ def receive_message(scket):
         message_type = message_type_hdr.decode('utf-8').strip()
 
         # Read username, needed for every message type 
-        username_hdr = scket.recv(HDR_USERNAME_SZ)
+        username_hdr = scket.recv(USERNAME_HDR_SZ)
 
         # Connection Error
         if not (len(username_hdr)):
@@ -68,13 +52,13 @@ def receive_message(scket):
                         'username': username}
 
         # Login or Signup, only username returned 
-        if message_type == '1' or message_type == '2' or message_type == '5' : 
+        if message_type in [CL_LOGIN, CL_SIGNUP, CL_LISTALL]: 
             return message_content
             
         # Message Client Request 
-        elif message_type == '3': 
+        elif message_type == CL_SEND_MSG: 
 
-            destinataries_hdr = scket.recv(HDR_DESTINATARIES_SZ)
+            destinataries_hdr = scket.recv(DESTINATARIES_HDR_SZ)
 
             # Connection Error
             if not (len(destinataries_hdr)):
@@ -84,7 +68,7 @@ def receive_message(scket):
             destinataries_length = int(destinataries_hdr.decode('utf-8').strip())
             destinataries = scket.recv(destinataries_length).decode('utf-8').strip().split(',')
 
-            message_hdr = scket.recv(HDR_MESSAGE_SZ)
+            message_hdr = scket.recv(MSG_HDR_SZ)
             
             # Connection Error
             if not (len(message_hdr)):
@@ -130,7 +114,7 @@ if __name__ == '__main__':
             print('Message Received', message_content)
 
             # Create new user in database 
-            if message_content['message_type'] == '2': 
+            if message_content['message_type'] == CL_SIGNUP: 
                 usernames.append(message_content['username'])
                 print(f"New user {message_content['username']} added to database") 
 
@@ -153,7 +137,7 @@ if __name__ == '__main__':
 
             if message_content['message_type'] == '3': 
                 # Message server reply 
-                outbound_message_type = f"{4:<{HDR_REQUEST_TYPE_SZ}}".encode('utf-8')  
+                outbound_message_type = f"{4:<{MSG_TYPE_HDR_SZ}}".encode('utf-8')  
 
                 for dest_sockt, info in clients.items():
                     if info['username'] in message_content['destinataries']:
@@ -168,11 +152,11 @@ if __name__ == '__main__':
                         print(f"Message sent from user {clients[sockt]['username']} to {info['username']}: {message_content['encoded_message'].decode('utf-8').strip()}")
            
             # LISTALL REQUEST
-            if message_content['message_type'] == '5': 
-                outbound_message_type = f"{6:<{HDR_REQUEST_TYPE_SZ}}".encode('utf-8')
+            if message_content['message_type'] == CL_LISTALL: 
+                outbound_message_type = f"{SRV_LISTALL:<{MSG_TYPE_HDR_SZ}}".encode('utf-8')
 
                 bdest = ",".join(usernames).encode("utf-8")
-                dest_hdr = f"{len(bdest):<{HDR_DESTINATARIES_SZ}}".encode('utf-8')
+                dest_hdr = f"{len(bdest):<{DESTINATARIES_HDR_SZ}}".encode('utf-8')
                 sockt.send(
                     outbound_message_type +
                     dest_hdr +
