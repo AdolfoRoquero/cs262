@@ -81,10 +81,16 @@ if __name__ == '__main__':
         # wait for message 
         dest = input(f"{username}> Destinataries: ").strip()
 
-        if dest == "listall":
+        if dest.startswith("listall"):
             msg_type = CL_LISTALL
             bmsg_type = f"{msg_type:<{MSG_TYPE_HDR_SZ}}".encode("utf-8")
-            sent = client_socket.send(bmsg_type + username_hdr + busername)
+
+            username_filter = dest.replace('listall', '').strip()
+            busername_filter = username_filter.encode('utf-8')
+            username_filter_hdr = f"{len(busername_filter):<{MSG_HDR_SZ}}".encode("utf-8")
+
+            sent = client_socket.send(bmsg_type + username_hdr + busername + 
+                                      username_filter_hdr + busername_filter)
             print('Listall request sent, %d bytes transmitted' % (sent))
     
         elif dest:
