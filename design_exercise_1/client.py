@@ -21,13 +21,12 @@ def receive_message(scket):
         return False
 
     message_content = {'message_type': msg_type}
-    print(msg_type)
+
     if msg_type == SRV_LISTALL: 
         message_length = int(scket.recv(DESTINATARIES_HDR_SZ).decode('utf-8').strip())
         message = scket.recv(message_length).decode('utf-8').split(',')
 
         message_content['message'] = message
-        print(message_content)
         return message_content
     
     else: 
@@ -118,14 +117,12 @@ if __name__ == '__main__':
 
         except IOError as e:
             if e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK:
-                print('e2')
-                print(f'Reading Error {e}')
+                print(f'E1 Reading Error {e}')
                 sys.exit()
 
             continue
         except Exception as e:
-            print('here')
-            print(f'Reading error: {e}')
+            print(f'E2 Reading error: {e}')
             sys.exit()
 
             
