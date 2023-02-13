@@ -27,12 +27,12 @@ def receive_message(scket):
         message_content['message'] = message
         return message_content
     
-    elif msg_type == SRV_DEL_USER:
+    elif msg_type in [SRV_DEL_USER, SRV_MSG_FAILURE]:
         message_length = int(scket.recv(MSG_HDR_SZ).decode('utf-8').strip())
         message = scket.recv(message_length).decode('utf-8')
         message_content['message'] = message
         return message_content
-    
+
     else: 
         sender_username_hdr = scket.recv(USERNAME_HDR_SZ)
         
@@ -77,8 +77,8 @@ if __name__ == '__main__':
     username_hdr = f"{len(busername):<{USERNAME_HDR_SZ}}".encode('utf-8')
 
     sent = client_socket.send(bmsg_type + 
-                           username_hdr + busername)
-
+                              username_hdr + busername)
+    
     print("to send messages, use format destinaries (comma separated); message")
 
     while True:
@@ -132,6 +132,11 @@ if __name__ == '__main__':
                             print(f"User {username} deleted. Closing Connection")
                             client_socket.close()
                             sys.exit()
+                    elif content['message_type'] == SRV_MSG_FAILURE:
+                        print(f"Server Error: {content['message']}\nClosing Connection")
+                        client_socket.close()
+                        sys.exit()
+                    
                     else: 
                         print(f'{content["username"]} > {content["message"]}')
 
