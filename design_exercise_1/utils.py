@@ -35,7 +35,7 @@ def read_metadata_header(socket):
         # Connection Error 
         if not len(version_hdr): 
             print("version")
-            raise Exception("Metadata version header missing")
+            # raise Exception("Metadata version header missing")
         version_length = int(version_hdr.decode('utf-8').strip())
         version = socket.recv(version_length).decode('utf-8') 
 
@@ -45,7 +45,7 @@ def read_metadata_header(socket):
         # Connection Error 
         if not len(msg_type_hdr): 
             print("type")
-            raise Exception("Metadata message type header missing")
+            # raise Exception("Metadata message type header missing")
 
         msg_type_length = int(msg_type_hdr.decode('utf-8').strip())
         msg_type = socket.recv(msg_type_length).decode('utf-8') 
@@ -54,7 +54,7 @@ def read_metadata_header(socket):
         if msg_type not in VALID_MESSAGE_TYPES: 
             print("type check")
 
-            raise Exception("Unrecognized message type")
+            # raise Exception("Unrecognized message type")
 
          # Read timestamp
         timestamp_hdr = socket.recv(TIMESTAMP_SZ)
@@ -62,7 +62,7 @@ def read_metadata_header(socket):
         # Connection Error 
         if not len(timestamp_hdr): 
             print("timestamp")
-            raise Exception("Metadata timestamp header missing")
+            # raise Exception("Metadata timestamp header missing")
         timestamp_length = int(timestamp_hdr.decode('utf-8').strip())
         timestamp = socket.recv(timestamp_length).decode('utf-8') 
         print(timestamp)
@@ -73,7 +73,7 @@ def read_metadata_header(socket):
         # Connection Error 
         if not len(sender_name_hdr): 
             print("sender name")
-            raise Exception("Metadata sender name header missing")
+            # raise Exception("Metadata sender name header missing")
 
         sender_name_length = int(sender_name_hdr.decode('utf-8').strip())
         sender_name = socket.recv(sender_name_length).decode('utf-8') 
