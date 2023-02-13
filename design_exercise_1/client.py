@@ -3,6 +3,7 @@ import sys
 import errno
 from protocol import *
 from utils import * 
+import traceback
 
 # TODO read IP from config file
 HOST = "10.250.227.245"
@@ -16,53 +17,50 @@ def client_setup():
     return client_socket
 
 def receive_message(scket):
-    try: 
-        # Read metadata 
-        metadata = read_metadata_header(scket)
 
-        if not metadata: 
-            raise Exception("Unable to read metadata")
+    # Read metadata 
+    metadata = read_metadata_header(scket)
 
-        message = {'metadata': metadata}
+    if not metadata: 
+        return False 
 
-        if message['metadata']['message_type'] == SRV_LISTALL: 
-            message_length = int(scket.recv(DESTINATARIES_HDR_SZ).decode('utf-8').strip())
-            message = scket.recv(message_length).decode('utf-8').split(',')
-            message['message_content'] = message
-            return message
+    message = {'metadata': metadata}
 
-        elif message['metadata']['message_type'] in [SRV_DEL_USER, SRV_MSG_FAILURE]:
-            message_length = int(scket.recv(MSG_HDR_SZ).decode('utf-8').strip())
-            message = scket.recv(message_length).decode('utf-8')
-            message['message_content'] = message
-            return message
+    if message['metadata']['message_type'] == SRV_LISTALL: 
+        message_length = int(scket.recv(DESTINATARIES_HDR_SZ).decode('utf-8').strip())
+        message_content = scket.recv(message_length).decode('utf-8').split(',')
+        message['message_content'] = message_content
+        return message
 
-        elif message['metadata']['message_type'] == SRV_FORWARD_MSG: 
-            sender_username_hdr = scket.recv(USERNAME_HDR_SZ)
+    elif message['metadata']['message_type'] in [SRV_DEL_USER, SRV_MSG_FAILURE]:
+        message_length = int(scket.recv(MSG_HDR_SZ).decode('utf-8').strip())
+        message_content = scket.recv(message_length).decode('utf-8')
+        message['message_content'] = message_content
+        return message
+
+    elif message['metadata']['message_type'] == SRV_FORWARD_MSG: 
+        sender_username_hdr = scket.recv(USERNAME_HDR_SZ)
+    
+        # Connection Error
+        if not (len(sender_username_hdr)):
+            return False 
+
+        sender_username_length = int(sender_username_hdr.decode('utf-8').strip())
+        sender_username = scket.recv(sender_username_length).decode('utf-8').strip()
+
+        message_hdr = scket.recv(MSG_HDR_SZ)
         
-            # Connection Error
-            if not (len(sender_username_hdr)):
-                raise Exception("Sender username header missing")
+        # Connection Error
+        if not (len(message_hdr)):
+            return False
 
-            sender_username_length = int(sender_username_hdr.decode('utf-8').strip())
-            sender_username = scket.recv(sender_username_length).decode('utf-8').strip()
+        message_length = int(message_hdr.decode('utf-8').strip())
+        message_content = scket.recv(message_length).decode('utf-8').strip()
+        
+        message['sender_username'] = sender_username
+        message['message_content'] = message_content
+        return message
 
-            message_hdr = scket.recv(MSG_HDR_SZ)
-            
-            # Connection Error
-            if not (len(message_hdr)):
-                raise Exception("Message header missing")
-
-            message_length = int(message_hdr.decode('utf-8').strip())
-            message_content = scket.recv(message_length).decode('utf-8').strip()
-            
-            message['sender_username'] = sender_username
-            message['message_content'] = message_content
-            return message
-
-    except Exception as e:
-        print('exception', e)
-        return False
 
 if __name__ == '__main__':
     client_socket = client_setup()
@@ -143,6 +141,7 @@ if __name__ == '__main__':
 
             continue
         except Exception as e:
+            print(traceback.format_exc())
             print(f'E2 Reading error: {e}')
             sys.exit()
 
