@@ -33,19 +33,23 @@ def read_metadata_header(socket):
         version_hdr = int(socket.recv(VERSION_SZ).decode('utf-8').strip())
         # Connection Error 
         if not len(version_hdr): 
+            print("version")
             raise Exception("Metadata version header missing")
         version = socket.recv(version_hdr).decode('utf-8') 
 
         # Read message type
-        msg_type_hdr = socket.recv(MSG_TYPE_HDR_SZ)
+        msg_type_hdr = int(socket.recv(MSG_TYPE_HDR_SZ).decode('utf-8').strip())
 
         # Connection Error 
         if not len(msg_type_hdr): 
+            print("type")
             raise Exception("Metadata message type header missing")
 
         msg_type = socket.recv(msg_type_hdr).decode('utf-8') 
 
         if msg_type not in VALID_MESSAGE_TYPES: 
+            print("type check")
+
             raise Exception("Unrecognized message type")
 
          # Read timestamp
@@ -53,6 +57,8 @@ def read_metadata_header(socket):
 
         # Connection Error 
         if not len(timestamp_hdr): 
+            print("timestamp")
+
             raise Exception("Metadata timestamp header missing")
 
         timestamp = socket.recv(timestamp_hdr).decode('utf-8') 
@@ -62,6 +68,7 @@ def read_metadata_header(socket):
 
         # Connection Error 
         if not len(sender_name_hdr): 
+            print("sender name")
             raise Exception("Metadata sender name header missing")
 
         sender_name = socket.recv(sender_name_hdr).decode('utf-8') 

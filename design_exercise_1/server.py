@@ -27,8 +27,9 @@ def receive_message(scket):
     try:
         # Read metadata 
         metadata = read_metadata_header(scket)
-
+        print(metadata)
         if not metadata: 
+            print("metadata read")
             raise Exception("Unable to read metadata")
 
         message = {'metadata': metadata}
@@ -50,6 +51,7 @@ def receive_message(scket):
 
             # Connection Error
             if not (len(destinataries_hdr)):
+                
                 raise Exception("Destinataries header missing")
 
             destinataries_length = int(destinataries_hdr.decode('utf-8').strip())
