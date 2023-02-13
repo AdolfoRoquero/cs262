@@ -30,22 +30,26 @@ def create_metadata_header(msg_type, sender_name):
 def read_metadata_header(socket): 
     try:
         # Read version 
-        version_hdr = int(socket.recv(VERSION_SZ).decode('utf-8').strip())
+        version_hdr = socket.recv(VERSION_SZ)
+
         # Connection Error 
         if not len(version_hdr): 
             print("version")
             raise Exception("Metadata version header missing")
-        version = socket.recv(version_hdr).decode('utf-8') 
+        version_length = int(version_hdr.decode('utf-8').strip())
+        version = socket.recv(version_length).decode('utf-8') 
 
         # Read message type
-        msg_type_hdr = int(socket.recv(MSG_TYPE_HDR_SZ).decode('utf-8').strip())
+        msg_type_hdr = socket.recv(MSG_TYPE_HDR_SZ)
 
         # Connection Error 
         if not len(msg_type_hdr): 
             print("type")
             raise Exception("Metadata message type header missing")
 
-        msg_type = socket.recv(msg_type_hdr).decode('utf-8') 
+        msg_type_length = int(msg_type_hdr.decode('utf-8').strip())
+        msg_type = socket.recv(msg_type_length).decode('utf-8') 
+        print(msg_type)
 
         if msg_type not in VALID_MESSAGE_TYPES: 
             print("type check")
@@ -53,25 +57,27 @@ def read_metadata_header(socket):
             raise Exception("Unrecognized message type")
 
          # Read timestamp
-        timestamp_hdr = int(socket.recv(TIMESTAMP_SZ).decode('utf-8').strip())
+        timestamp_hdr = socket.recv(TIMESTAMP_SZ)
 
         # Connection Error 
         if not len(timestamp_hdr): 
             print("timestamp")
-
             raise Exception("Metadata timestamp header missing")
-
-        timestamp = socket.recv(timestamp_hdr).decode('utf-8') 
+        timestamp_length = int(timestamp_hdr.decode('utf-8').strip())
+        timestamp = socket.recv(timestamp_length).decode('utf-8') 
+        print(timestamp)
 
         # Read sender name 
-        sender_name_hdr = int(socket.recv(USERNAME_HDR_SZ).decode('utf-8').strip())
+        sender_name_hdr = socket.recv(USERNAME_HDR_SZ)
 
         # Connection Error 
         if not len(sender_name_hdr): 
             print("sender name")
             raise Exception("Metadata sender name header missing")
 
-        sender_name = socket.recv(sender_name_hdr).decode('utf-8') 
+        sender_name_length = int(sender_name_hdr.decode('utf-8').strip())
+        sender_name = socket.recv(sender_name_length).decode('utf-8') 
+        print(sender_name)
 
         return {'version': version, 
                 'message_type': msg_type, 
