@@ -1,7 +1,7 @@
 import socket
 import select
-import time
 from protocol import *
+from utils import * 
 
 HOST = socket.gethostname()#'65.112.8.28'
 HOST = "10.250.227.245"
@@ -22,54 +22,35 @@ def server_setup():
     server_socket.listen()
     return server_socket
 
+
 def receive_message(scket):
     try:
-        # Read type of message 
-        message_type_hdr = scket.recv(MSG_TYPE_HDR_SZ)
+        # Read metadata 
+        metadata = read_metadata_header(scket)
 
-        # Connection Error 
-        if not len(message_type_hdr): 
-            print('Error: message type header missing')
-            return False 
+        if not metadata: 
+            raise Exception("Unable to read metadata")
 
-        message_type = message_type_hdr.decode('utf-8').strip()
-
-        # Read username, needed for every message type 
-        username_hdr = scket.recv(USERNAME_HDR_SZ)
-
-        # Connection Error
-        if not (len(username_hdr)):
-            print('Error: username header missing')
-            return False
-
-
-        username_length = int(username_hdr.decode('utf-8').strip())
-        username = scket.recv(username_length).decode('utf-8').strip()
-
-        # Username & message type decoded before returned; values used by other functions 
-        message_content = {'message_type': message_type, 
-                        'username_hdr': username_hdr,
-                        'username': username}
+        message = {'metadata': metadata}
 
         # Login or Signup, only username returned 
-        if message_type in [CL_LOGIN, CL_SIGNUP, CL_DEL_USER]: 
-            return message_content
+        if metadata['message_type'] in [CL_LOGIN, CL_SIGNUP, CL_DEL_USER]: 
+            return message
 
-        elif message_type == CL_LISTALL: 
+        elif metadata['message_type'] == CL_LISTALL: 
             filter_length = int(scket.recv(MSG_HDR_SZ).decode('utf-8').strip())
             username_filter = scket.recv(filter_length).decode('utf-8')
-            message_content['username_filter'] = username_filter
-            return message_content    
+            message['username_filter'] = username_filter
+            return message    
             
         # Message Client Request 
-        elif message_type == CL_SEND_MSG: 
+        elif metadata['message_type'] == CL_SEND_MSG: 
 
             destinataries_hdr = scket.recv(DESTINATARIES_HDR_SZ)
 
             # Connection Error
             if not (len(destinataries_hdr)):
-                print('Error: destinataries header missing')
-                return False
+                raise Exception("Destinataries header missing")
 
             destinataries_length = int(destinataries_hdr.decode('utf-8').strip())
             destinataries = scket.recv(destinataries_length).decode('utf-8').strip().split(',')
@@ -78,21 +59,16 @@ def receive_message(scket):
             
             # Connection Error
             if not (len(message_hdr)):
-                print('Error: message header missing')
-                return False
+                raise Exception("Message header missing")
 
             message_length = int(message_hdr.decode('utf-8').strip())
-            message = scket.recv(message_length)
+            message_content = scket.recv(message_length)
 
-            message_content['destinataries'] = destinataries
-            message_content['message_hdr'] = message_hdr
-            message_content['encoded_message'] = message
+            message['destinataries'] = destinataries
+            message['message_hdr'] = message_hdr
+            message['encoded_message'] = message_content
             
-            return message_content
-
-        else: 
-            print('Error: unrecognized message type')
-            return False  
+            return message
   
     except Exception as e:
         print('exception', e)
@@ -116,71 +92,108 @@ if __name__ == '__main__':
             # Create new socket for send/receive from client
             conn, addr = server_socket.accept()
             print(conn, addr)
-            message_content = receive_message(conn)
-            print('Message Received', message_content)
+            message = receive_message(conn)
+            print('Message Received', message)
 
-            # Create new user in database 
-            if message_content['message_type'] == CL_SIGNUP: 
-                usernames.append(message_content['username'])
-                print(f"New user {message_content['username']} added to database") 
+            # Login and Signup 
+            if message['metadata']['message_type']  == CL_SIGNUP: 
+                if message['metadata']['sender_name'] in usernames: 
+                    metadata_hdr = create_metadata_header(SRV_MSG_FAILURE, "server")
+                    print("Failed signup attempt") 
+                    msg = "Signup failed: username taken." 
+                    bmsg = msg.encode('utf-8')
+                    bmsg_hdr = f"{len(bmsg):<{MSG_HDR_SZ}}".encode('utf-8')
+                    sent = conn.send(metadata_hdr + bmsg_hdr + bmsg)
+                    print('Message sent, %d/%d bytes transmitted' % (sent, len(msg))) 
 
-            # Add new socket to the list of sockets passed to select
-            socket_list.append(conn)
+                else: 
+                    usernames.append(message['metadata']['sender_name'])
+                    print(f"New user {message['metadata']['sender_name']} added to database") 
+            
+                    # Add new socket to the list of sockets passed to select
+                    socket_list.append(conn)
 
-            clients[conn] = {'username' : message_content['username'],
-                             'addr': addr}
+                    clients[conn] = {'username' : message['metadata']['sender_name'],
+                                    'addr': addr}
+                    print(f"Accepted new connection from user: {message['metadata']['sender_name']} at {addr[0]}:{addr[1]}")
 
-            print(f"Accepted new connection from user: {message_content['username']} at {addr[0]}:{addr[1]}")
+
+            elif message['metadata']['message_type']  == CL_LOGIN: 
+                if message['metadata']['sender_name'] not in usernames:
+                    print("Failed login attempt") 
+                    metadata_hdr = create_metadata_header(SRV_MSG_FAILURE, "server")
+                    msg = "Login failed: invalid username" 
+                    bmsg = msg.encode('utf-8')
+                    bmsg_hdr = f"{len(bmsg):<{MSG_HDR_SZ}}".encode('utf-8')
+                    sent = conn.send(metadata_hdr + bmsg_hdr + bmsg)
+                    print('Message sent, %d/%d bytes transmitted' % (sent, len(msg))) 
+
+
+                else:             
+                    # Add new socket to the list of sockets passed to select
+                    socket_list.append(conn)
+
+                    clients[conn] = {'username' : message['metadata']['sender_name'],
+                                    'addr': addr}
+
+
+                    print(f"Accepted new connection from user: {message['metadata']['sender_name']} at {addr[0]}:{addr[1]}")
+            else: 
+                pass # handle this 
 
         else:
-            message_content = receive_message(sockt)
-            if not message_content:
+            message = receive_message(sockt)
+            if not message:
                 print(f"Closed connection from user: {clients[sockt]['username']} at {clients[sockt]['addr'][0]}:{clients[sockt]['addr'][1]}")
                 socket_list.remove(sockt)
                 del clients[sockt] 
                 continue
-            print('Message Received', message_content)
+            print('Message Received', message)
 
-            if message_content['message_type'] == CL_SEND_MSG: 
+            if message['metadata']['message_type'] == CL_SEND_MSG: 
                 # Message server reply 
-                msg_type = f"{SRV_FORWARD_MSG:<{MSG_TYPE_HDR_SZ}}".encode('utf-8')  
-
                 for dest_sockt, info in clients.items():
-                    if info['username'] in message_content['destinataries']:
+                    if info['username'] in message['destinataries']:
                         print(f"trying to send a message to {info['username']}")
-                        dest_sockt.send(
-                            msg_type + 
-                            message_content['username_hdr'] + 
-                            message_content['username'].encode('utf-8') + 
-                            message_content['message_hdr'] + 
-                            message_content['encoded_message'])
+                        metadata_hdr =  create_metadata_header(SRV_FORWARD_MSG, "server")
 
-                        print(f"Message sent from user {clients[sockt]['username']} to {info['username']}: {message_content['encoded_message'].decode('utf-8').strip()}")
+                        # username of message sender 
+                        sender_username = message['metadata']['sender_name']
+                        bsender_username = sender_username.encode('utf-8')
+                        bsender_username_hdr = f"{len(bsender_username):<{USERNAME_HDR_SZ}}".encode('utf-8')
+                        dest_sockt.send(
+                            metadata_hdr +
+                            bsender_username_hdr + 
+                            bsender_username + 
+                            message['message_hdr'] +
+                            message['encoded_message'])
+
+                        print(f"Message sent from user {clients[sockt]['username']} to {info['username']}: {message['encoded_message'].decode('utf-8').strip()}")
            
             # LISTALL REQUEST
-            if message_content['message_type'] == CL_LISTALL: 
-                msg_type = f"{SRV_LISTALL:<{MSG_TYPE_HDR_SZ}}".encode('utf-8')
-                filtered_usernames = [name for name in usernames if name.startswith(message_content['username_filter'])]
+            if message['metadata']['message_type'] == CL_LISTALL: 
+                metadata_hdr =  create_metadata_header(SRV_LISTALL, "server")
+                filtered_usernames = [name for name in usernames if name.startswith(message['username_filter'])]
                 bdest = ",".join(filtered_usernames).encode("utf-8")
                 dest_hdr = f"{len(bdest):<{DESTINATARIES_HDR_SZ}}".encode('utf-8')
                 sockt.send(
-                    msg_type +
+                    metadata_hdr +
                     dest_hdr +
                     bdest
                 )
 
             # DELETE USER REQUEST 
-            if message_content['message_type'] == CL_DEL_USER: 
+            if message['metadata']['message_type'] == CL_DEL_USER: 
                 print(f"Delete user request from user: {clients[sockt]['username']} at {clients[sockt]['addr'][0]}:{clients[sockt]['addr'][1]}")
                 socket_list.remove(sockt)
                 usernames.remove(clients[sockt]['username'])
                 del clients[sockt] 
                 print(usernames)
-                msg_type = f"{SRV_DEL_USER:<{MSG_TYPE_HDR_SZ}}".encode('utf-8')
+                metadata_hdr =  create_metadata_header(SRV_DEL_USER, "server")
                 msg = "Success" 
                 bmsg = msg.encode('utf-8')
                 bmsg_hdr = f"{len(bmsg):<{MSG_HDR_SZ}}".encode('utf-8')
-                sent = sockt.send(msg_type + bmsg_hdr + bmsg)
+                sent = sockt.send(metadata_hdr + bmsg_hdr + bmsg)
                 print('Message sent, %d/%d bytes transmitted' % (sent, len(msg))) 
 
 
