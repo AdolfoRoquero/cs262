@@ -1,8 +1,22 @@
-from datetime import datetime as dt 
+from datetime import datetime as dt
+from time import time 
 from protocol import *
-import socket
 
+def unpack_from_header(scket, header_size, decode = True): 
+    # Read header 
+    hdr = scket.recv(header_size)
 
+    # Connection Error 
+    if not len(hdr): 
+        return False 
+
+    content_length = int(hdr.decode('utf-8').strip())
+    
+    content = scket.recv(content_length)
+    if decode: 
+        return content.decode('utf-8') 
+        
+    return content 
 
 def create_metadata_header(msg_type, sender_name): 
 
@@ -31,47 +45,28 @@ def create_metadata_header(msg_type, sender_name):
 def read_metadata_header(scket): 
 
     # Read version 
-    version_hdr = scket.recv(VERSION_SZ)
+    version = unpack_from_header(scket, VERSION_SZ) 
 
-    # Connection Error 
-    if not len(version_hdr): 
+    if not version: 
         return False 
-    version_length = int(version_hdr.decode('utf-8').strip())
-    version = scket.recv(version_length).decode('utf-8') 
 
     # Read message type
-    msg_type_hdr = scket.recv(MSG_TYPE_HDR_SZ)
+    msg_type = unpack_from_header(scket, MSG_TYPE_HDR_SZ) 
 
-    # Connection Error 
-    if not len(msg_type_hdr): 
+    if (not msg_type) or (msg_type not in VALID_MESSAGE_TYPES): 
         return False 
 
-    msg_type_length = int(msg_type_hdr.decode('utf-8').strip())
-    msg_type = scket.recv(msg_type_length).decode('utf-8') 
+    # Read timestamp
+    timestamp = unpack_from_header(scket, TIMESTAMP_SZ) 
 
-    if msg_type not in VALID_MESSAGE_TYPES: 
+    if not timestamp: 
         return False 
-
-
-        # Read timestamp
-    timestamp_hdr = scket.recv(TIMESTAMP_SZ)
-
-    # Connection Error 
-    if not len(timestamp_hdr): 
-        return False 
-
-    timestamp_length = int(timestamp_hdr.decode('utf-8').strip())
-    timestamp = scket.recv(timestamp_length).decode('utf-8') 
 
     # Read sender name 
-    sender_name_hdr = scket.recv(USERNAME_HDR_SZ)
+    sender_name = unpack_from_header(scket, USERNAME_HDR_SZ) 
 
-    # Connection Error 
-    if not len(sender_name_hdr): 
+    if not sender_name: 
         return False 
-
-    sender_name_length = int(sender_name_hdr.decode('utf-8').strip())
-    sender_name = scket.recv(sender_name_length).decode('utf-8') 
 
     return {'version': version, 
             'message_type': msg_type, 

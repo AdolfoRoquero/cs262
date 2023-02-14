@@ -27,26 +27,31 @@ def receive_message(scket):
     message = {'metadata': metadata}
 
     if message['metadata']['message_type'] == SRV_LISTALL: 
-        message_length = int(scket.recv(DESTINATARIES_HDR_SZ).decode('utf-8').strip())
-        message_content = scket.recv(message_length).decode('utf-8').split(',')
-        message['message_content'] = message_content
+        # Read destinataries 
+        message_content_str = unpack_from_header(scket, DESTINATARIES_HDR_SZ)
+
+        if not message_content_str: 
+            return False
+        
+        message['message_content'] = message_content_str.split(',')
         return message
 
     elif message['metadata']['message_type'] in [SRV_DEL_USER, SRV_MSG_FAILURE]:
-        message_length = int(scket.recv(MSG_HDR_SZ).decode('utf-8').strip())
-        message_content = scket.recv(message_length).decode('utf-8')
+        message_content = unpack_from_header(scket, MSG_HDR_SZ)
+        if not message_content: 
+            return False 
         message['message_content'] = message_content
         return message
 
     elif message['metadata']['message_type'] == SRV_FORWARD_MSG: 
-        sender_username_hdr = scket.recv(USERNAME_HDR_SZ)
-    
-        # Connection Error
-        if not (len(sender_username_hdr)):
-            return False 
+        sender_username =  unpack_from_header(scket, USERNAME_HDR_SZ)
+        if not sender_username: 
+            return False
+        
+        sender_timestamp = unpack_from_header(scket, TIMESTAMP_SZ)
 
-        sender_username_length = int(sender_username_hdr.decode('utf-8').strip())
-        sender_username = scket.recv(sender_username_length).decode('utf-8').strip()
+        if not sender_timestamp: 
+            return False
 
         message_hdr = scket.recv(MSG_HDR_SZ)
         
@@ -57,6 +62,7 @@ def receive_message(scket):
         message_length = int(message_hdr.decode('utf-8').strip())
         message_content = scket.recv(message_length).decode('utf-8').strip()
         
+        message['sender_timestamp'] = sender_timestamp
         message['sender_username'] = sender_username
         message['message_content'] = message_content
         return message
@@ -131,7 +137,7 @@ if __name__ == '__main__':
                         sys.exit()
                     
                     else: 
-                        print(f'{message["sender_username"]} > {message["message_content"]}')
+                        print(f'{message["sender_username"], message["sender_timestamp"]} > {message["message_content"]}')
 
 
         except IOError as e:

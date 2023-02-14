@@ -1,19 +1,24 @@
 import socket
 import select
+from collections import defaultdict
 from protocol import *
 from utils import * 
 
 HOST = socket.gethostname()#'65.112.8.28'
-HOST = "10.250.227.245"
+# HOST = "10.250.227.245"
 PORT = 6000
 TIMEOUT = 60 # In seconds
 
 # Stores existing usernames 
 # Usernames have a length from 1 to 99 chars
-usernames = []
+usernames = ["Leticia", "Liz", "Bel"]
 
 # Key: socket, val: {username: , addr:}
 clients = {}
+
+# store pending messages 
+# Key: username, val: [message]
+pending_messages = defaultdict(list)
 
 def server_setup():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -24,8 +29,6 @@ def server_setup():
 
 
 def receive_message(scket):
-
-
     try: 
         # Read metadata 
         metadata = read_metadata_header(scket)
@@ -45,14 +48,12 @@ def receive_message(scket):
             
         # Message Client Request 
         elif metadata['message_type'] == CL_SEND_MSG: 
+            # Read destinataries 
+            destinataries_str = unpack_from_header(scket, DESTINATARIES_HDR_SZ)
 
-            destinataries_hdr = scket.recv(DESTINATARIES_HDR_SZ)
-
-            # Connection Error
-            if not (len(destinataries_hdr)):
+            if not destinataries_str: 
                 return False 
-            destinataries_length = int(destinataries_hdr.decode('utf-8').strip())
-            destinataries = scket.recv(destinataries_length).decode('utf-8').strip().split(',')
+            destinataries = destinataries_str.strip().split(',')
 
             message_hdr = scket.recv(MSG_HDR_SZ)
             
@@ -66,6 +67,7 @@ def receive_message(scket):
             message['destinataries'] = destinataries
             message['message_hdr'] = message_hdr
             message['encoded_message'] = message_content
+            message['message_timestamp'] = metadata['timestamp']
             
             return message
     except Exception as e: 
@@ -93,8 +95,7 @@ if __name__ == '__main__':
             conn, addr = server_socket.accept()
             print(conn, addr)
             message = receive_message(conn)
-            
-
+        
             # Login and Signup 
             if message['metadata']['message_type']  == CL_SIGNUP: 
                 if message['metadata']['sender_name'] in usernames: 
@@ -136,8 +137,14 @@ if __name__ == '__main__':
                     clients[conn] = {'username' : message['metadata']['sender_name'],
                                     'addr': addr}
 
-
                     print(f"Accepted new connection from user: {message['metadata']['sender_name']} at {addr[0]}:{addr[1]}")
+
+                    for pending_msg in pending_messages[clients[conn]['username']]:
+                        metadata_hdr =  create_metadata_header(SRV_FORWARD_MSG, "server")
+                        sent = conn.send(metadata_hdr + pending_msg)
+                        print('Message sent, %d/%d bytes transmitted' % (sent, len(pending_msg))) 
+                    
+                    del pending_messages[clients[conn]['username']]
             else: 
                 pass # handle this 
 
@@ -152,22 +159,33 @@ if __name__ == '__main__':
 
             if message['metadata']['message_type'] == CL_SEND_MSG: 
                 # Message server reply 
-                for dest_sockt, info in clients.items():
-                    if info['username'] in message['destinataries']:
-                        metadata_hdr =  create_metadata_header(SRV_FORWARD_MSG, "server")
+                for destinatary in message['destinataries']:
+                    if destinatary in usernames: 
+                        dest_sockets = [client for client in clients if clients[client]['username'] == destinatary]
+                        
                         # username of message sender 
                         sender_username = message['metadata']['sender_name']
                         bsender_username = sender_username.encode('utf-8')
                         bsender_username_hdr = f"{len(bsender_username):<{USERNAME_HDR_SZ}}".encode('utf-8')
-                        dest_sockt.send(
-                            metadata_hdr +
-                            bsender_username_hdr + 
-                            bsender_username + 
-                            message['message_hdr'] +
-                            message['encoded_message'])
+                        # timestamp message sent by client 
+                        sender_timestamp = message['metadata']['timestamp']
+                        bsender_timestamp = sender_timestamp.encode('utf-8')
+                        bsender_timestamp_hdr = f"{len(bsender_timestamp):<{TIMESTAMP_SZ}}".encode('utf-8')
 
-                        print(f"Message sent from user {clients[sockt]['username']} to {info['username']}: {message['encoded_message'].decode('utf-8').strip()}")
-           
+                        message_body = (bsender_username_hdr + 
+                                        bsender_username + 
+                                        bsender_timestamp_hdr + 
+                                        bsender_timestamp +
+                                        message['message_hdr'] +
+                                        message['encoded_message'])
+                        if dest_sockets: 
+                            for dest_sockt in dest_sockets: 
+                                metadata_hdr =  create_metadata_header(SRV_FORWARD_MSG, "server")
+                                dest_sockt.send(metadata_hdr + message_body)
+
+                                print(f"Message sent from user {clients[sockt]['username']} to {destinatary}: {message['encoded_message'].decode('utf-8').strip()}")
+                        else: 
+                            pending_messages[destinatary].append(message_body)
             # LISTALL REQUEST
             if message['metadata']['message_type'] == CL_LISTALL: 
                 metadata_hdr =  create_metadata_header(SRV_LISTALL, "server")
