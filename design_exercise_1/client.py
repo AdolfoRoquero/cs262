@@ -6,7 +6,7 @@ from utils import *
 import traceback
 
 # TODO read IP from config file
-HOST = "10.250.227.245"
+HOST = "10.250.157.173" #"10.250.227.245"
 PORT = 6000
 
 
@@ -94,10 +94,9 @@ if __name__ == '__main__':
             metadata_hdr = create_metadata_header(CL_LISTALL, username)
 
             username_filter = dest.replace('listall', '').strip()
-            busername_filter = username_filter.encode('utf-8')
-            username_filter_hdr = f"{len(busername_filter):<{MSG_HDR_SZ}}".encode("utf-8")
+            username_filter_enc = encode_message_segment(username_filter, MSG_HDR_SZ)
 
-            sent = client_socket.send(metadata_hdr + username_filter_hdr + busername_filter)
+            sent = client_socket.send(metadata_hdr + username_filter_enc)
             print('Listall request sent, %d bytes transmitted' % (sent))
         
         elif dest == "delete_user":
@@ -109,16 +108,15 @@ if __name__ == '__main__':
             msg = input(f"{username}> Message: ").strip()
             if msg:
                 metadata_hdr = create_metadata_header(CL_SEND_MSG, username)
-                bdest = dest.encode("utf-8")
-                dest_hdr = f"{len(bdest):<{DESTINATARIES_HDR_SZ}}".encode('utf-8')
-                bmsg = msg.encode("utf-8")
-                message_hdr = f"{len(bmsg):<{MSG_HDR_SZ}}".encode('utf-8')
-                sent = client_socket.send(metadata_hdr +
-                                    dest_hdr + bdest +
-                                    message_hdr + bmsg)
+                # Encode destinatary
+                dest_enc = encode_message_segment(dest, DESTINATARIES_HDR_SZ)
+        
+                # Encode message
+                message_enc = encode_message_segment(msg, MSG_HDR_SZ)
+
+                sent = client_socket.send(metadata_hdr + dest_enc + message_enc)
                 
                 print('Message sent, %d/%d bytes transmitted' % (sent, len(msg)))
-
 
         try:
             while True:

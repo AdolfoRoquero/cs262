@@ -2,7 +2,17 @@ from datetime import datetime as dt
 from time import time 
 from protocol import *
 
+
+def encode_message_segment(content, header_size):
+    ''''''
+    bcontent = content.encode('utf-8')
+    content_hdr = f"{len(bcontent):<{header_size}}".encode('utf-8')
+    return content_hdr + bcontent
+
+
 def unpack_from_header(scket, header_size, decode = True): 
+    '''
+    '''
     # Read header 
     hdr = scket.recv(header_size)
 
@@ -21,26 +31,19 @@ def unpack_from_header(scket, header_size, decode = True):
 def create_metadata_header(msg_type, sender_name): 
 
     # version 
-    bversion = VERSION.encode('utf-8')
-    version_hdr = f"{len(bversion):<{VERSION_SZ}}".encode('utf-8')
-
-    # message type  
-    bmsg_type = msg_type.encode('utf-8')
-    msg_type_hdr = f"{len(bmsg_type):<{MSG_TYPE_HDR_SZ}}".encode('utf-8')
+    version_enc = encode_message_segment(VERSION, VERSION_SZ)
+    # message type
+    msg_type_enc = encode_message_segment(msg_type, MSG_TYPE_HDR_SZ)
 
     # timestamp 
     timestamp = dt.now().strftime("%d/%m/%Y, %H:%M:%S")
-    btimestamp = timestamp.encode('utf-8')
-    timestamp_hdr = f"{len(btimestamp):<{TIMESTAMP_SZ}}".encode('utf-8')
+    timestamp_enc = encode_message_segment(timestamp, TIMESTAMP_SZ)
 
     # sender name
-    bsender_name = sender_name.encode('utf-8')
-    bsender_hdr = f"{len(bsender_name):<{USERNAME_HDR_SZ}}".encode('utf-8')
+    sender_enc = encode_message_segment(sender_name, USERNAME_HDR_SZ)
 
-    return (version_hdr + bversion + 
-            msg_type_hdr + bmsg_type + 
-            timestamp_hdr + btimestamp + 
-            bsender_hdr + bsender_name)
+    return version_enc + msg_type_enc + timestamp_enc + sender_enc
+
 
 def read_metadata_header(scket): 
 

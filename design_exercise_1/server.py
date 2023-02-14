@@ -73,149 +73,138 @@ def receive_message(scket):
     except Exception as e: 
         print('exception', e)
         return False 
-    
 
 
 if __name__ == '__main__':
- server_socket = server_setup()
- socket_list = [server_socket]
+    server_socket = server_setup()
+    socket_list = [server_socket]
 
- while True:
-    ready_to_read, ready_to_write, in_error = select.select(
-                    socket_list,
-                    socket_list,
-                    [],
-                    TIMEOUT)
-  
-    for sockt in ready_to_read:
+    while True:
+        ready_to_read, ready_to_write, in_error = select.select(
+                        socket_list,
+                        socket_list,
+                        [],
+                        TIMEOUT)
+    
+        for sockt in ready_to_read:
 
-        # Accept new connections for server socket
-        if sockt == server_socket:
-            # Create new socket for send/receive from client
-            conn, addr = server_socket.accept()
-            print(conn, addr)
-            message = receive_message(conn)
-        
-            # Login and Signup 
-            if message['metadata']['message_type']  == CL_SIGNUP: 
-                if message['metadata']['sender_name'] in usernames: 
-                    metadata_hdr = create_metadata_header(SRV_MSG_FAILURE, "server")
-                    print("Failed signup attempt") 
-                    msg = "Signup failed: username taken." 
-                    bmsg = msg.encode('utf-8')
-                    bmsg_hdr = f"{len(bmsg):<{MSG_HDR_SZ}}".encode('utf-8')
-                    sent = conn.send(metadata_hdr + bmsg_hdr + bmsg)
-                    print('Message sent, %d/%d bytes transmitted' % (sent, len(msg))) 
-
-                else: 
-                    usernames.append(message['metadata']['sender_name'])
-                    print(f"New user {message['metadata']['sender_name']} added to database") 
+            # Accept new connections for server socket
+            if sockt == server_socket:
+                # Create new socket for send/receive from client
+                conn, addr = server_socket.accept()
+                print(conn, addr)
+                message = receive_message(conn)
             
-                    # Add new socket to the list of sockets passed to select
-                    socket_list.append(conn)
+                # Login and Signup 
+                if message['metadata']['message_type']  == CL_SIGNUP: 
+                    if message['metadata']['sender_name'] in usernames: 
+                        metadata_hdr = create_metadata_header(SRV_MSG_FAILURE, "server")
+                        print("Failed signup attempt") 
+                        msg_enc = encode_message_segment("Signup failed: username taken.", MSG_HDR_SZ)
+                        sent = conn.send(metadata_hdr + msg_enc)
+                        print('Message sent, %d bytes transmitted' % (sent)) 
 
-                    clients[conn] = {'username' : message['metadata']['sender_name'],
-                                    'addr': addr}
-                    print(f"Accepted new connection from user: {message['metadata']['sender_name']} at {addr[0]}:{addr[1]}")
+                    else: 
+                        usernames.append(message['metadata']['sender_name'])
+                        print(f"New user {message['metadata']['sender_name']} added to database") 
+                
+                        # Add new socket to the list of sockets passed to select
+                        socket_list.append(conn)
+
+                        clients[conn] = {'username' : message['metadata']['sender_name'],
+                                        'addr': addr}
+                        print(f"Accepted new connection from user: {message['metadata']['sender_name']} at {addr[0]}:{addr[1]}")
 
 
-            elif message['metadata']['message_type']  == CL_LOGIN: 
-                if message['metadata']['sender_name'] not in usernames:
-                    print("Failed login attempt") 
-                    metadata_hdr = create_metadata_header(SRV_MSG_FAILURE, "server")
-                    msg = "Login failed: invalid username" 
-                    bmsg = msg.encode('utf-8')
-                    bmsg_hdr = f"{len(bmsg):<{MSG_HDR_SZ}}".encode('utf-8')
-                    sent = conn.send(metadata_hdr + bmsg_hdr + bmsg)
-                    print('Message sent, %d/%d bytes transmitted' % (sent, len(msg))) 
+                elif message['metadata']['message_type']  == CL_LOGIN: 
+                    if message['metadata']['sender_name'] not in usernames:
+                        print("Failed login attempt") 
+                        metadata_hdr = create_metadata_header(SRV_MSG_FAILURE, "server")
+                        msg = "Login failed: invalid username" 
+                        msg_enc = encode_message_segment(msg, MSG_HDR_SZ)
+                        sent = conn.send(metadata_hdr + msg_enc)
+                        print('Message sent, %d/%d bytes transmitted' % (sent, len(msg))) 
 
+                    else:             
+                        # Add new socket to the list of sockets passed to select
+                        socket_list.append(conn)
 
-                else:             
-                    # Add new socket to the list of sockets passed to select
-                    socket_list.append(conn)
+                        clients[conn] = {'username' : message['metadata']['sender_name'],
+                                        'addr': addr}
 
-                    clients[conn] = {'username' : message['metadata']['sender_name'],
-                                    'addr': addr}
+                        print(f"Accepted new connection from user: {message['metadata']['sender_name']} at {addr[0]}:{addr[1]}")
 
-                    print(f"Accepted new connection from user: {message['metadata']['sender_name']} at {addr[0]}:{addr[1]}")
-
-                    for pending_msg in pending_messages[clients[conn]['username']]:
-                        metadata_hdr =  create_metadata_header(SRV_FORWARD_MSG, "server")
-                        sent = conn.send(metadata_hdr + pending_msg)
-                        print('Message sent, %d/%d bytes transmitted' % (sent, len(pending_msg))) 
-                    
-                    del pending_messages[clients[conn]['username']]
-            else: 
-                pass # handle this 
-
-        else:
-            message = receive_message(sockt)
-            if not message:
-                print(f"Closed connection from user: {clients[sockt]['username']} at {clients[sockt]['addr'][0]}:{clients[sockt]['addr'][1]}")
-                socket_list.remove(sockt)
-                del clients[sockt] 
-                continue
-            print('Message Received', message)
-
-            if message['metadata']['message_type'] == CL_SEND_MSG: 
-                # Message server reply 
-                for destinatary in message['destinataries']:
-                    if destinatary in usernames: 
-                        dest_sockets = [client for client in clients if clients[client]['username'] == destinatary]
+                        for pending_msg in pending_messages[clients[conn]['username']]:
+                            metadata_hdr =  create_metadata_header(SRV_FORWARD_MSG, "server")
+                            sent = conn.send(metadata_hdr + pending_msg)
+                            print('Message sent, %d/%d bytes transmitted' % (sent, len(pending_msg))) 
                         
-                        # username of message sender 
-                        sender_username = message['metadata']['sender_name']
-                        bsender_username = sender_username.encode('utf-8')
-                        bsender_username_hdr = f"{len(bsender_username):<{USERNAME_HDR_SZ}}".encode('utf-8')
-                        # timestamp message sent by client 
-                        sender_timestamp = message['metadata']['timestamp']
-                        bsender_timestamp = sender_timestamp.encode('utf-8')
-                        bsender_timestamp_hdr = f"{len(bsender_timestamp):<{TIMESTAMP_SZ}}".encode('utf-8')
+                        del pending_messages[clients[conn]['username']]
+                else: 
+                    pass # handle this 
 
-                        message_body = (bsender_username_hdr + 
-                                        bsender_username + 
-                                        bsender_timestamp_hdr + 
-                                        bsender_timestamp +
-                                        message['message_hdr'] +
-                                        message['encoded_message'])
-                        if dest_sockets: 
-                            for dest_sockt in dest_sockets: 
-                                metadata_hdr =  create_metadata_header(SRV_FORWARD_MSG, "server")
-                                dest_sockt.send(metadata_hdr + message_body)
+            else:
+                message = receive_message(sockt)
+                if not message:
+                    print(f"Closed connection from user: {clients[sockt]['username']} at {clients[sockt]['addr'][0]}:{clients[sockt]['addr'][1]}")
+                    socket_list.remove(sockt)
+                    del clients[sockt] 
+                    continue
+                print('Message Received', message)
 
-                                print(f"Message sent from user {clients[sockt]['username']} to {destinatary}: {message['encoded_message'].decode('utf-8').strip()}")
-                        else: 
-                            pending_messages[destinatary].append(message_body)
-            # LISTALL REQUEST
-            if message['metadata']['message_type'] == CL_LISTALL: 
-                metadata_hdr =  create_metadata_header(SRV_LISTALL, "server")
-                filtered_usernames = [name for name in usernames if name.startswith(message['username_filter'])]
-                bdest = ",".join(filtered_usernames).encode("utf-8")
-                dest_hdr = f"{len(bdest):<{DESTINATARIES_HDR_SZ}}".encode('utf-8')
-                sent = sockt.send(
-                    metadata_hdr +
-                    dest_hdr +
-                    bdest
-                )
-                print('Message sent, %d/%d bytes transmitted' % (sent, len(bdest))) 
+                if message['metadata']['message_type'] == CL_SEND_MSG: 
+                    # Message server reply 
+                    for destinatary in message['destinataries']:
+                        if destinatary in usernames: 
+                            dest_sockets = [client for client in clients if clients[client]['username'] == destinatary]
+                            
+                            # username of message sender 
+                            sender_username_enc = encode_message_segment(message['metadata']['sender_name'], USERNAME_HDR_SZ)
 
-            # DELETE USER REQUEST 
-            if message['metadata']['message_type'] == CL_DEL_USER: 
-                print(f"Delete user request from user: {clients[sockt]['username']} at {clients[sockt]['addr'][0]}:{clients[sockt]['addr'][1]}")
-                socket_list.remove(sockt)
-                usernames.remove(clients[sockt]['username'])
-                del clients[sockt] 
-                metadata_hdr =  create_metadata_header(SRV_DEL_USER, "server")
-                msg = "Success" 
-                bmsg = msg.encode('utf-8')
-                bmsg_hdr = f"{len(bmsg):<{MSG_HDR_SZ}}".encode('utf-8')
-                sent = sockt.send(metadata_hdr + bmsg_hdr + bmsg)
-                print('Message sent, %d/%d bytes transmitted' % (sent, len(msg))) 
+                            # timestamp message sent by client 
+                            sender_timestamp = message['metadata']['timestamp']
+                            sender_timestamp_enc = encode_message_segment(message['metadata']['timestamp'], TIMESTAMP_SZ)
+
+                            message_body = (sender_username_enc +
+                                            sender_timestamp_enc +
+                                            message['message_hdr'] +
+                                            message['encoded_message'])
+                            if dest_sockets: 
+                                for dest_sockt in dest_sockets: 
+                                    metadata_hdr = create_metadata_header(SRV_FORWARD_MSG, "server")
+                                    dest_sockt.send(metadata_hdr + message_body)
+
+                                    print(f"Message sent from user {clients[sockt]['username']} to {destinatary}: {message['encoded_message'].decode('utf-8').strip()}")
+                            else: 
+                                pending_messages[destinatary].append(message_body)
+                # LISTALL REQUEST
+                if message['metadata']['message_type'] == CL_LISTALL: 
+                    metadata_hdr =  create_metadata_header(SRV_LISTALL, "server")
+                    filtered_usernames = ",".join([name for name in usernames if name.startswith(message['username_filter'])])
+                    dest_enc = encode_message_segment(filtered_usernames, DESTINATARIES_HDR_SZ)                
+                    sent = sockt.send(
+                        metadata_hdr +
+                        dest_enc 
+                    )
+                    print('Message sent, %d bytes transmitted' % (sent)) 
+
+                # DELETE USER REQUEST 
+                if message['metadata']['message_type'] == CL_DEL_USER: 
+                    print(f"Delete user request from user: {clients[sockt]['username']} at {clients[sockt]['addr'][0]}:{clients[sockt]['addr'][1]}")
+                    socket_list.remove(sockt)
+                    usernames.remove(clients[sockt]['username'])
+                    if clients[sockt]['username'] in pending_messages:
+                        del pending_messages[clients[sockt]['username']]
+                    del clients[sockt] 
+                    metadata_hdr =  create_metadata_header(SRV_DEL_USER, "server")
+                    msg_enc = encode_message_segment("Success", MSG_HDR_SZ)
+                    sent = sockt.send(metadata_hdr + msg_enc)
+                    print('Message sent, %d bytes transmitted' % (sent)) 
 
 
-                    
-                    
-               
+                        
+                        
+                
 
 
 
