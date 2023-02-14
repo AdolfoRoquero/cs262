@@ -6,70 +6,117 @@ from utils import *
 import traceback
 
 # TODO read IP from config file
-HOST = "10.250.227.245"
+HOST = "10.250.157.173" #"10.250.227.245"
 PORT = 6000
 
 
-def client_setup():
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect((HOST, PORT))
-    client_socket.setblocking(False)
-    return client_socket
+class Client():
+    def __init__(self, host=socket.gethostname(), 
+                       port=6000):
+        self.host = host
+        self.port = port
 
-def receive_message(scket):
+    def setup(self):
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client_socket.connect((HOST, PORT))
+        self.client_socket.setblocking(False)
 
-    # Read metadata 
-    metadata = read_metadata_header(scket)
-
-    if not metadata: 
-        return False 
-
-    message = {'metadata': metadata}
-
-    if message['metadata']['message_type'] == SRV_LISTALL: 
-        # Read destinataries 
-        message_content_str = unpack_from_header(scket, DESTINATARIES_HDR_SZ)
-
-        if not message_content_str: 
-            return False
+    
+    def login(self, username):
+        metadata_hdr = create_metadata_header(CL_LOGIN, username)
+        sent = self.client_socket.send(metadata_hdr)
+        self.username = username
+        return sent
+    
+    def sign_up(self, username):
+        metadata_hdr = create_metadata_header(CL_SIGNUP, username)
+        sent = self.client_socket.send(metadata_hdr)
+        self.username = username
+        return sent
+    
+    def listall(self, username, username_filter):
         
-        message['message_content'] = message_content_str.split(',')
-        return message
+        metadata_hdr = create_metadata_header(CL_LISTALL, username)
+        username_filter_enc = encode_message_segment(username_filter, MSG_HDR_SZ)
+        sent = self.client_socket.send(metadata_hdr + username_filter_enc)        
+        return sent
+    
+    def del_user(self):
+        metadata_hdr = create_metadata_header(CL_DEL_USER, self.username)
+        sent = self.client_socket.send(metadata_hdr)
+        return sent
 
-    elif message['metadata']['message_type'] in [SRV_DEL_USER, SRV_MSG_FAILURE]:
-        message_content = unpack_from_header(scket, MSG_HDR_SZ)
-        if not message_content: 
+    def send_message(self, dest, msg):
+        metadata_hdr = create_metadata_header(CL_SEND_MSG, self.username)
+        # Encode destinatary
+        dest_enc = encode_message_segment(dest, DESTINATARIES_HDR_SZ)
+        
+        # Encode message
+        message_enc = encode_message_segment(msg, MSG_HDR_SZ)
+
+        sent = self.client_socket.send(metadata_hdr + dest_enc + message_enc)
+        return sent
+
+    def close(self):
+        self.client_socket.close()
+
+    def receive_message(self):
+
+        # Read metadata 
+        metadata = read_metadata_header(self.client_socket)
+
+        if not metadata: 
             return False 
-        message['message_content'] = message_content
-        return message
 
-    elif message['metadata']['message_type'] == SRV_FORWARD_MSG: 
-        sender_username =  unpack_from_header(scket, USERNAME_HDR_SZ)
-        if not sender_username: 
-            return False
-        
-        sender_timestamp = unpack_from_header(scket, TIMESTAMP_SZ)
+        message = {'metadata': metadata}
 
-        if not sender_timestamp: 
-            return False
+        if message['metadata']['message_type'] == SRV_LISTALL: 
+            # Read destinataries 
+            message_content_str = unpack_from_header(self.client_socket, DESTINATARIES_HDR_SZ)
 
-        message_hdr = scket.recv(MSG_HDR_SZ)
-        
-        # Connection Error
-        if not (len(message_hdr)):
-            return False
+            if not message_content_str: 
+                return False
+            
+            message['message_content'] = message_content_str.split(',')
+            return message
 
-        message_length = int(message_hdr.decode('utf-8').strip())
-        message_content = scket.recv(message_length).decode('utf-8').strip()
-        
-        message['sender_timestamp'] = sender_timestamp
-        message['sender_username'] = sender_username
-        message['message_content'] = message_content
-        return message
+        elif message['metadata']['message_type'] in [SRV_DEL_USER, SRV_MSG_FAILURE]:
+            message_content = unpack_from_header(self.client_socket, MSG_HDR_SZ)
+            if not message_content: 
+                return False 
+            message['message_content'] = message_content
+            return message
+
+        elif message['metadata']['message_type'] == SRV_FORWARD_MSG: 
+            sender_username =  unpack_from_header(self.client_socket, USERNAME_HDR_SZ)
+            if not sender_username: 
+                return False
+            
+            sender_timestamp = unpack_from_header(self.client_socket, TIMESTAMP_SZ)
+
+            if not sender_timestamp: 
+                return False
+
+            message_hdr = self.client_socket.recv(MSG_HDR_SZ)
+            
+            # Connection Error
+            if not (len(message_hdr)):
+                return False
+
+            message_length = int(message_hdr.decode('utf-8').strip())
+            message_content = self.client_socket.recv(message_length).decode('utf-8').strip()
+            
+            message['sender_timestamp'] = sender_timestamp
+            message['sender_username'] = sender_username
+            message['message_content'] = message_content
+            return message
 
 
 if __name__ == '__main__':
-    client_socket = client_setup()
+    HOST = "10.250.157.173"
+    client = Client(host=HOST)
+    client.setup()
+    
     while True:
         new_or_existing = input("New or existing user (N or E): ").strip()
         if new_or_existing == 'E':
@@ -80,10 +127,12 @@ if __name__ == '__main__':
             break
 
     username = input("Enter username: ").strip()
-    metadata_hdr = create_metadata_header(client_msg_type, username)
 
-    sent = client_socket.send(metadata_hdr)
-    
+    if client_msg_type == CL_SIGNUP:
+        sent = client.sign_up(username) 
+    elif client_msg_type == CL_LOGIN:
+        sent = client.login(username) 
+
     print("to send messages, use format destinaries (comma separated); message")
 
     while True:
@@ -91,49 +140,35 @@ if __name__ == '__main__':
         dest = input(f"{username}> Destinataries: ").strip()
 
         if dest.startswith("listall"):
-            metadata_hdr = create_metadata_header(CL_LISTALL, username)
 
             username_filter = dest.replace('listall', '').strip()
-            busername_filter = username_filter.encode('utf-8')
-            username_filter_hdr = f"{len(busername_filter):<{MSG_HDR_SZ}}".encode("utf-8")
-
-            sent = client_socket.send(metadata_hdr + username_filter_hdr + busername_filter)
+            sent = client.listall(username, username_filter) 
             print('Listall request sent, %d bytes transmitted' % (sent))
         
         elif dest == "delete_user":
-            metadata_hdr = create_metadata_header(CL_DEL_USER, username)
-            sent = client_socket.send(metadata_hdr)
+            sent = client.del_user()
             print('Delete user request sent, %d bytes transmitted' % (sent))
     
         elif dest:
             msg = input(f"{username}> Message: ").strip()
             if msg:
-                metadata_hdr = create_metadata_header(CL_SEND_MSG, username)
-                bdest = dest.encode("utf-8")
-                dest_hdr = f"{len(bdest):<{DESTINATARIES_HDR_SZ}}".encode('utf-8')
-                bmsg = msg.encode("utf-8")
-                message_hdr = f"{len(bmsg):<{MSG_HDR_SZ}}".encode('utf-8')
-                sent = client_socket.send(metadata_hdr +
-                                    dest_hdr + bdest +
-                                    message_hdr + bmsg)
-                
+                sent = client.send_message(dest, msg)
                 print('Message sent, %d/%d bytes transmitted' % (sent, len(msg)))
-
 
         try:
             while True:
-                message = receive_message(client_socket)
+                message =  client.receive_message()
                 if message:
                     if message['metadata']['message_type'] == SRV_LISTALL: 
                         print(f'{username} > {",".join(message["message_content"])}')
                     elif message['metadata']['message_type'] == SRV_DEL_USER:
                         if message['message_content'] == "Success":
                             print(f"User {username} deleted. Closing Connection")
-                            client_socket.close()
+                            client.close()
                             sys.exit()
                     elif message['metadata']['message_type'] == SRV_MSG_FAILURE:
                         print(f"Server Error: {message['message_content']}\nClosing Connection")
-                        client_socket.close()
+                        client.close()
                         sys.exit()
                     
                     else: 
