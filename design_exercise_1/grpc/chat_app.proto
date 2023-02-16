@@ -29,17 +29,17 @@ package chatapp;
 // Interface exported by the server.
 service ChatApp {
 
-  rpc Login(User) returns (requestReply) {}
+  rpc Login(User) returns (RequestReply); 
 
-  rpc SignUp(User) returns (requestReply) {}
+  rpc SignUp(User) returns (RequestReply); 
 
-  rpc ListAll(User) returns (UserList) {}
+  rpc ListAll(User) returns (UserList); 
 
-  rpc DeleteUser(User) returns (requestReply) {}
+  rpc DeleteUser(User) returns (RequestReply);
 
-  rpc SendMessage(ChatMessage) returns (requestReply) {}
+  rpc SendMessage(ChatMessage) returns (RequestReply);
 
-  rpc ReceiveMessage(User) returns (ChatMessage) {}
+  rpc ReceiveMessage(User) returns (ChatMessage);
 
 }
 
@@ -47,12 +47,14 @@ service ChatApp {
 // (degrees multiplied by 10**7 and rounded to the nearest integer).
 // Latitudes should be in the range +/- 90 degrees and longitude should be in
 // the range +/- 180 degrees (inclusive).
-message User {
-     string username = 1;
+
+
+message RequestReply {
+     string reply = 1;
 }
 
-message requestReply {
-     string reply = 1;
+message User {
+    string username = 1; 
 }
 
 message UserList {

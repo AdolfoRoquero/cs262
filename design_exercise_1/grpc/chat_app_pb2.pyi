@@ -18,6 +18,12 @@ class ChatMessage(_message.Message):
     text: str
     def __init__(self, sender: _Optional[_Union[User, _Mapping]] = ..., destinataries: _Optional[_Union[UserList, _Mapping]] = ..., text: _Optional[str] = ..., date: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
+class RequestReply(_message.Message):
+    __slots__ = ["reply"]
+    REPLY_FIELD_NUMBER: _ClassVar[int]
+    reply: str
+    def __init__(self, reply: _Optional[str] = ...) -> None: ...
+
 class User(_message.Message):
     __slots__ = ["username"]
     USERNAME_FIELD_NUMBER: _ClassVar[int]
@@ -29,9 +35,3 @@ class UserList(_message.Message):
     USERS_FIELD_NUMBER: _ClassVar[int]
     users: _containers.RepeatedCompositeFieldContainer[User]
     def __init__(self, users: _Optional[_Iterable[_Union[User, _Mapping]]] = ...) -> None: ...
-
-class requestReply(_message.Message):
-    __slots__ = ["reply"]
-    REPLY_FIELD_NUMBER: _ClassVar[int]
-    reply: str
-    def __init__(self, reply: _Optional[str] = ...) -> None: ...

@@ -18,12 +18,12 @@ class ChatAppStub(object):
         self.Login = channel.unary_unary(
                 '/chatapp.ChatApp/Login',
                 request_serializer=chat__app__pb2.User.SerializeToString,
-                response_deserializer=chat__app__pb2.requestReply.FromString,
+                response_deserializer=chat__app__pb2.RequestReply.FromString,
                 )
         self.SignUp = channel.unary_unary(
                 '/chatapp.ChatApp/SignUp',
                 request_serializer=chat__app__pb2.User.SerializeToString,
-                response_deserializer=chat__app__pb2.requestReply.FromString,
+                response_deserializer=chat__app__pb2.RequestReply.FromString,
                 )
         self.ListAll = channel.unary_unary(
                 '/chatapp.ChatApp/ListAll',
@@ -33,12 +33,12 @@ class ChatAppStub(object):
         self.DeleteUser = channel.unary_unary(
                 '/chatapp.ChatApp/DeleteUser',
                 request_serializer=chat__app__pb2.User.SerializeToString,
-                response_deserializer=chat__app__pb2.requestReply.FromString,
+                response_deserializer=chat__app__pb2.RequestReply.FromString,
                 )
         self.SendMessage = channel.unary_unary(
                 '/chatapp.ChatApp/SendMessage',
                 request_serializer=chat__app__pb2.ChatMessage.SerializeToString,
-                response_deserializer=chat__app__pb2.requestReply.FromString,
+                response_deserializer=chat__app__pb2.RequestReply.FromString,
                 )
         self.ReceiveMessage = channel.unary_unary(
                 '/chatapp.ChatApp/ReceiveMessage',
@@ -93,12 +93,12 @@ def add_ChatAppServicer_to_server(servicer, server):
             'Login': grpc.unary_unary_rpc_method_handler(
                     servicer.Login,
                     request_deserializer=chat__app__pb2.User.FromString,
-                    response_serializer=chat__app__pb2.requestReply.SerializeToString,
+                    response_serializer=chat__app__pb2.RequestReply.SerializeToString,
             ),
             'SignUp': grpc.unary_unary_rpc_method_handler(
                     servicer.SignUp,
                     request_deserializer=chat__app__pb2.User.FromString,
-                    response_serializer=chat__app__pb2.requestReply.SerializeToString,
+                    response_serializer=chat__app__pb2.RequestReply.SerializeToString,
             ),
             'ListAll': grpc.unary_unary_rpc_method_handler(
                     servicer.ListAll,
@@ -108,12 +108,12 @@ def add_ChatAppServicer_to_server(servicer, server):
             'DeleteUser': grpc.unary_unary_rpc_method_handler(
                     servicer.DeleteUser,
                     request_deserializer=chat__app__pb2.User.FromString,
-                    response_serializer=chat__app__pb2.requestReply.SerializeToString,
+                    response_serializer=chat__app__pb2.RequestReply.SerializeToString,
             ),
             'SendMessage': grpc.unary_unary_rpc_method_handler(
                     servicer.SendMessage,
                     request_deserializer=chat__app__pb2.ChatMessage.FromString,
-                    response_serializer=chat__app__pb2.requestReply.SerializeToString,
+                    response_serializer=chat__app__pb2.RequestReply.SerializeToString,
             ),
             'ReceiveMessage': grpc.unary_unary_rpc_method_handler(
                     servicer.ReceiveMessage,
@@ -144,7 +144,7 @@ class ChatApp(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/Login',
             chat__app__pb2.User.SerializeToString,
-            chat__app__pb2.requestReply.FromString,
+            chat__app__pb2.RequestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -161,7 +161,7 @@ class ChatApp(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/SignUp',
             chat__app__pb2.User.SerializeToString,
-            chat__app__pb2.requestReply.FromString,
+            chat__app__pb2.RequestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -195,7 +195,7 @@ class ChatApp(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/DeleteUser',
             chat__app__pb2.User.SerializeToString,
-            chat__app__pb2.requestReply.FromString,
+            chat__app__pb2.RequestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -212,7 +212,7 @@ class ChatApp(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/SendMessage',
             chat__app__pb2.ChatMessage.SerializeToString,
-            chat__app__pb2.requestReply.FromString,
+            chat__app__pb2.RequestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
