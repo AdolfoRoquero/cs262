@@ -33,13 +33,13 @@ service ChatApp {
 
   rpc SignUp(User) returns (RequestReply); 
 
-  rpc ListAll(User) returns (UserList); 
+  rpc ListAll(ListAllRequest) returns (UserList); 
 
   rpc DeleteUser(User) returns (RequestReply);
 
   rpc SendMessage(ChatMessage) returns (RequestReply);
 
-  rpc ReceiveMessage(User) returns (ChatMessage);
+  rpc ReceiveMessage(User) returns (stream ChatMessage);
 
 }
 
@@ -51,6 +51,7 @@ service ChatApp {
 
 message RequestReply {
      string reply = 1;
+     int32 request_status = 2;
 }
 
 message User {
@@ -61,12 +62,19 @@ message UserList {
     repeated User users = 1;
 }
 
+message ListAllRequest {
+    string username_filter = 1; 
+}
+
 message ChatMessage {
     User sender = 1;
     UserList destinataries = 2;
     string text = 3;
     google.protobuf.Timestamp date = 4;
 }
+
+
+
 
 // python -m grpc_tools.protoc -I../../protos --python_out=. --pyi_out=. --grpc_python_out=. ../../protos/helloworld.proto
 // python -m grpc_tools.protoc -I=. --python_out=. --pyi_out=.  --grpc_python_out=. ./chat_app.proto

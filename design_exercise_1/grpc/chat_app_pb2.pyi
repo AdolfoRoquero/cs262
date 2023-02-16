@@ -18,11 +18,19 @@ class ChatMessage(_message.Message):
     text: str
     def __init__(self, sender: _Optional[_Union[User, _Mapping]] = ..., destinataries: _Optional[_Union[UserList, _Mapping]] = ..., text: _Optional[str] = ..., date: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
+class ListAllRequest(_message.Message):
+    __slots__ = ["username_filter"]
+    USERNAME_FILTER_FIELD_NUMBER: _ClassVar[int]
+    username_filter: str
+    def __init__(self, username_filter: _Optional[str] = ...) -> None: ...
+
 class RequestReply(_message.Message):
-    __slots__ = ["reply"]
+    __slots__ = ["reply", "request_status"]
     REPLY_FIELD_NUMBER: _ClassVar[int]
+    REQUEST_STATUS_FIELD_NUMBER: _ClassVar[int]
     reply: str
-    def __init__(self, reply: _Optional[str] = ...) -> None: ...
+    request_status: int
+    def __init__(self, reply: _Optional[str] = ..., request_status: _Optional[int] = ...) -> None: ...
 
 class User(_message.Message):
     __slots__ = ["username"]
