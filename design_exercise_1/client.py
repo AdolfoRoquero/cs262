@@ -8,7 +8,7 @@ from functools import wraps
 
 
 # TODO read IP from config file
-HOST = "10.250.157.173" #"10.250.227.245"
+HOST = "10.250.227.245" #"10.250.227.245"
 PORT = 6000
 
 
@@ -128,7 +128,7 @@ class Client():
 
 
 if __name__ == '__main__':
-    HOST = "10.250.157.173"
+    HOST = "10.250.227.245"
     client = Client(host=HOST)
     client.setup()
     
@@ -143,32 +143,41 @@ if __name__ == '__main__':
 
     username = input("Enter username: ").strip()
 
+ 
+
     if client_msg_type == CL_SIGNUP:
         sent = client.sign_up(username) 
     elif client_msg_type == CL_LOGIN:
         sent = client.login(username) 
 
-    print("to send messages, use format destinaries (comma separated); message")
+    waiting_for_response = False
 
     while True:
         # wait for message 
-        dest = input(f"{username}> Destinataries: ").strip()
+        if not waiting_for_response:
+            print(f"Commands: 'listall', 'delete_user', 'send_message', 'refresh'")
+            command = input(f"{username}> ").strip()
 
-        if dest.startswith("listall"):
+        if command.startswith("listall"):
 
             username_filter = dest.replace('listall', '').strip()
             sent = client.listall(username, username_filter) 
-            print('Listall request sent, %d bytes transmitted' % (sent))
+            waiting_for_response = True
+            command = ''
+            #print('Listall request sent, %d bytes transmitted' % (sent))
         
-        elif dest == "delete_user":
+        elif command == "delete_user":
             sent = client.del_user()
-            print('Delete user request sent, %d bytes transmitted' % (sent))
+            waiting_for_response = True
+            command = ''
+            #print('Delete user request sent, %d bytes transmitted' % (sent))
     
-        elif dest:
+        elif command == "send_message":
+            dest = input(f"{username}> Destinataries (comma separated): ").strip()
             msg = input(f"{username}> Message: ").strip()
             if msg:
                 sent = client.send_message(dest, msg)
-                print('Message sent, %d/%d bytes transmitted' % (sent, len(msg)))
+                #print('Message sent, %d/%d bytes transmitted' % (sent, len(msg)))
 
         try:
             while True:
@@ -176,6 +185,7 @@ if __name__ == '__main__':
                 if message:
                     if message['metadata']['message_type'] == SRV_LISTALL: 
                         print(f'{username} > {",".join(message["message_content"])}')
+                        waiting_for_response = False
                     elif message['metadata']['message_type'] == SRV_DEL_USER:
                         if message['message_content'] == "Success":
                             print(f"User {username} deleted. Closing Connection")
@@ -188,14 +198,16 @@ if __name__ == '__main__':
                     
                     else: 
                         print(f'{message["sender_username"], message["sender_timestamp"]} > {message["message_content"]}')
-
+                
 
         except IOError as e:
             if e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK:
                 print(f'E1 Reading Error {e}')
                 sys.exit()
-
+            #waiting_for_response = False
             continue
+
+            # waiting for response 
         except Exception as e:
             print(traceback.format_exc())
             print(f'E2 Reading error: {e}')

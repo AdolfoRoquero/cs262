@@ -44,16 +44,17 @@ def run():
                 destinataries = [chat_app_pb2.User(username = dest.strip()) for dest in destinataries.split(",")]
                 message = input(f"{user.username}> Message: ").strip()
                 if message: 
+                    date = timestamp_pb2.Timestamp()
                     chat_message = chat_app_pb2.ChatMessage(
                         sender = user, destinataries = chat_app_pb2.UserList(users=destinataries), 
-                        text = message, date = timestamp_pb2.Timestamp().GetCurrentTime())
+                        text = message, date = date.GetCurrentTime())
                     reply = stub.SendMessage(chat_message)
 
             # Receive messages pending 
             replies = stub.ReceiveMessage(user) 
 
             for reply in replies:
-                print(f'{reply.sender.username} > {reply.text}')
+                print(f'{reply.sender.username}, {reply.date.ToDatetime().isoformat()} > {reply.text}')
 
 
             
