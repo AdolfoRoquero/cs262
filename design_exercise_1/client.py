@@ -4,6 +4,8 @@ import errno
 from protocol import *
 from utils import * 
 import traceback
+from functools import wraps
+
 
 # TODO read IP from config file
 HOST = "10.250.157.173" #"10.250.227.245"
@@ -15,38 +17,47 @@ class Client():
                        port=6000):
         self.host = host
         self.port = port
+        
+        self.is_logged_in = False
 
     def setup(self):
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_socket.connect((HOST, PORT))
         self.client_socket.setblocking(False)
-
     
     def login(self, username):
         metadata_hdr = create_metadata_header(CL_LOGIN, username)
         sent = self.client_socket.send(metadata_hdr)
         self.username = username
+        self.is_logged_in = True
         return sent
     
     def sign_up(self, username):
         metadata_hdr = create_metadata_header(CL_SIGNUP, username)
         sent = self.client_socket.send(metadata_hdr)
         self.username = username
+        self.is_logged_in = True
         return sent
     
     def listall(self, username, username_filter):
-        
+        if not self.is_logged_in:
+            raise Exception("ListAll requires the client to be logged in")
+
         metadata_hdr = create_metadata_header(CL_LISTALL, username)
         username_filter_enc = encode_message_segment(username_filter, MSG_HDR_SZ)
         sent = self.client_socket.send(metadata_hdr + username_filter_enc)        
         return sent
     
     def del_user(self):
+        if not self.is_logged_in:
+            raise Exception("ListAll requires the client to be logged in")
         metadata_hdr = create_metadata_header(CL_DEL_USER, self.username)
         sent = self.client_socket.send(metadata_hdr)
         return sent
 
     def send_message(self, dest, msg):
+        if not self.is_logged_in:
+            raise Exception("ListAll requires the client to be logged in")
         metadata_hdr = create_metadata_header(CL_SEND_MSG, self.username)
         # Encode destinatary
         dest_enc = encode_message_segment(dest, DESTINATARIES_HDR_SZ)
@@ -58,9 +69,13 @@ class Client():
         return sent
 
     def close(self):
+        if not self.is_logged_in:
+            raise Exception("ListAll requires the client to be logged in")
         self.client_socket.close()
 
     def receive_message(self):
+        if not self.is_logged_in:
+            raise Exception("ListAll requires the client to be logged in")
 
         # Read metadata 
         metadata = read_metadata_header(self.client_socket)
