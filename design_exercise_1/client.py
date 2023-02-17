@@ -95,7 +95,7 @@ class Client():
             message['message_content'] = message_content_str.split(',')
             return message
 
-        elif message['metadata']['message_type'] in [SRV_DEL_USER, SRV_MSG_FAILURE]:
+        elif message['metadata']['message_type'] in [SRV_DEL_USER, SRV_MSG_FAILURE, SRV_SIGNUP, SRV_LOGIN]:
             message_content = unpack_from_header(self.client_socket, MSG_HDR_SZ)
             if not message_content: 
                 return False 
@@ -128,39 +128,41 @@ class Client():
 
 
 if __name__ == '__main__':
-    HOST = "10.250.227.245"
+    HOST = "10.0.20.87"
     client = Client(host=HOST)
     client.setup()
-    
-    while True:
-        new_or_existing = input("New or existing user (N or E): ").strip()
-        if new_or_existing == 'E':
-            client_msg_type = CL_LOGIN  
-            break
-        elif new_or_existing == 'N':
-            client_msg_type = CL_SIGNUP
-            break
-
-    username = input("Enter username: ").strip()
-
- 
-
-    if client_msg_type == CL_SIGNUP:
-        sent = client.sign_up(username) 
-    elif client_msg_type == CL_LOGIN:
-        sent = client.login(username) 
 
     waiting_for_response = False
 
     while True:
+        new_or_existing = input("New or existing user (N or E): ").strip().lower()
+        if new_or_existing == 'e':
+            client_msg_type = CL_LOGIN  
+            break
+        elif new_or_existing == 'n':
+            client_msg_type = CL_SIGNUP
+            break
+
+    username = input("Enter username: ").strip().lower()
+
+    if client_msg_type == CL_SIGNUP:
+        sent = client.sign_up(username) 
+        waiting_for_response = True 
+    elif client_msg_type == CL_LOGIN:
+        sent = client.login(username) 
+        waiting_for_response = True 
+    
+    command = ''
+    while True:
         # wait for message 
         if not waiting_for_response:
             print(f"Commands: 'listall', 'delete_user', 'send_message', 'refresh'")
+            # print() 
             command = input(f"{username}> ").strip()
 
         if command.startswith("listall"):
 
-            username_filter = dest.replace('listall', '').strip()
+            username_filter = command.replace('listall', '').strip()
             sent = client.listall(username, username_filter) 
             waiting_for_response = True
             command = ''
@@ -195,16 +197,17 @@ if __name__ == '__main__':
                         print(f"Server Error: {message['message_content']}\nClosing Connection")
                         client.close()
                         sys.exit()
+                    elif message['metadata']['message_type'] in [SRV_LOGIN, SRV_SIGNUP]:  
+                        waiting_for_response = False
                     
                     else: 
-                        print(f'{message["sender_username"], message["sender_timestamp"]} > {message["message_content"]}')
+                        print(f'{message["sender_timestamp"][:-3]} {message["sender_username"]} > {message["message_content"]}')
                 
 
         except IOError as e:
             if e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK:
                 print(f'E1 Reading Error {e}')
                 sys.exit()
-            #waiting_for_response = False
             continue
 
             # waiting for response 
@@ -214,6 +217,3 @@ if __name__ == '__main__':
             sys.exit()
 
             
-
-    #client_soc.close()
-

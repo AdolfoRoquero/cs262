@@ -7,7 +7,7 @@ from utils import *
 
 
 class Server():
-    def __init__(self, host=socket.gethostname(), 
+    def __init__(self, host='10.0.20.87', 
                        port=6000, 
                        timeout=60, 
                        usernames=["Leticia", "Liz", "Bel"],
@@ -15,6 +15,7 @@ class Server():
                        pending_messages=defaultdict(list)):
         
         self.host = host
+        print(host)
         self.port = port
         self.timeout = timeout
 
@@ -63,6 +64,12 @@ class Server():
                             print('Message sent, %d bytes transmitted' % (sent)) 
 
                         else: 
+                            # Reply to client successfull connection 
+                            metadata_hdr = create_metadata_header(SRV_SIGNUP, "server")
+                            msg = "Signup successful!" 
+                            msg_enc = encode_message_segment(msg, MSG_HDR_SZ)
+                            sent = conn.send(metadata_hdr + msg_enc)
+
                             self.usernames.append(message['metadata']['sender_name'])
                             print(f"New user {message['metadata']['sender_name']} added to database") 
                     
@@ -84,6 +91,12 @@ class Server():
                             print('Message sent, %d/%d bytes transmitted' % (sent, len(msg))) 
 
                         else:             
+                            # Reply to client successfull connection 
+                            metadata_hdr = create_metadata_header(SRV_LOGIN, "server")
+                            msg = "Login successful!" 
+                            msg_enc = encode_message_segment(msg, MSG_HDR_SZ)
+                            sent = conn.send(metadata_hdr + msg_enc)
+
                             # Add new socket to the list of sockets passed to select
                             self.socket_list.append(conn)
 
@@ -96,7 +109,7 @@ class Server():
                                 metadata_hdr =  create_metadata_header(SRV_FORWARD_MSG, "server")
                                 sent = conn.send(metadata_hdr + pending_msg)
                                 print('Message sent, %d/%d bytes transmitted' % (sent, len(pending_msg))) 
-                            
+                        
                             del self.pending_messages[self.clients[conn]['username']]
                     else: 
                         pass # handle this 
