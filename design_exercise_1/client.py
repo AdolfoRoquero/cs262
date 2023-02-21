@@ -8,7 +8,6 @@ from functools import wraps
 
 
 # TODO read IP from config file
-HOST = "10.250.227.245" #"10.250.227.245"
 PORT = 6000
 
 
@@ -22,7 +21,7 @@ class Client():
 
     def setup(self):
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.client_socket.connect((HOST, PORT))
+        self.client_socket.connect((self.host, self.port))
         self.client_socket.setblocking(False)
     
     def login(self, username):
@@ -50,7 +49,7 @@ class Client():
     
     def del_user(self):
         if not self.is_logged_in:
-            raise Exception("ListAll requires the client to be logged in")
+            raise Exception("Deleting a user requires the client to be logged in")
         metadata_hdr = create_metadata_header(CL_DEL_USER, self.username)
         sent = self.client_socket.send(metadata_hdr)
         return sent
@@ -88,10 +87,6 @@ class Client():
         if message['metadata']['message_type'] == SRV_LISTALL: 
             # Read destinataries 
             message_content_str = unpack_from_header(self.client_socket, DESTINATARIES_HDR_SZ)
-
-            if not message_content_str: 
-                return False
-            
             message['message_content'] = message_content_str.split(',')
             return message
 
@@ -128,7 +123,7 @@ class Client():
 
 
 if __name__ == '__main__':
-    HOST = "10.0.20.87"
+    HOST = "192.168.0.114"
     client = Client(host=HOST)
     client.setup()
 
@@ -156,8 +151,7 @@ if __name__ == '__main__':
     while True:
         # wait for message 
         if not waiting_for_response:
-            print(f"Commands: 'listall', 'delete_user', 'send_message', 'refresh'")
-            # print() 
+            print(f"Commands: 'listall <wildcard>', 'delete_user', 'send_message' OR <enter> to refresh")
             command = input(f"{username}> ").strip()
 
         if command.startswith("listall"):
@@ -166,21 +160,17 @@ if __name__ == '__main__':
             sent = client.listall(username, username_filter) 
             waiting_for_response = True
             command = ''
-            #print('Listall request sent, %d bytes transmitted' % (sent))
         
         elif command == "delete_user":
             sent = client.del_user()
             waiting_for_response = True
             command = ''
-            #print('Delete user request sent, %d bytes transmitted' % (sent))
-    
+
         elif command == "send_message":
-            dest = input(f"{username}> Destinataries (comma separated): ").strip()
+            dest = input(f"{username}> Destinataries (comma separated): ").strip().lower()
             msg = input(f"{username}> Message: ").strip()
             if msg:
                 sent = client.send_message(dest, msg)
-                #print('Message sent, %d/%d bytes transmitted' % (sent, len(msg)))
-
         try:
             while True:
                 message =  client.receive_message()

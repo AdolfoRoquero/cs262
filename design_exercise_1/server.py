@@ -3,14 +3,14 @@ import select
 from collections import defaultdict
 from protocol import *
 from utils import * 
-
+import fnmatch
 
 
 class Server():
-    def __init__(self, host='10.0.20.87', 
+    def __init__(self, host='192.168.0.114', 
                        port=6000, 
                        timeout=60, 
-                       usernames=["Leticia", "Liz", "Bel"],
+                       usernames=[],
                        clients={},
                        pending_messages=defaultdict(list)):
         
@@ -22,6 +22,7 @@ class Server():
         # Stores existing usernames 
         # Usernames have a length from 1 to 99 chars
         self.usernames = usernames
+        # Stores connected sockets    
         # Key: socket, val: {username: , addr:}
         self.clients = clients
         # store pending messages 
@@ -151,7 +152,7 @@ class Server():
                     # LISTALL REQUEST
                     if message['metadata']['message_type'] == CL_LISTALL: 
                         metadata_hdr =  create_metadata_header(SRV_LISTALL, "server")
-                        filtered_usernames = ",".join([name for name in self.usernames if name.startswith(message['username_filter'])])
+                        filtered_usernames = ",".join([name for name in self.usernames if fnmatch.fnmatch(name, message['username_filter'])])
                         dest_enc = encode_message_segment(filtered_usernames, DESTINATARIES_HDR_SZ)                
                         sent = sockt.send(
                             metadata_hdr +

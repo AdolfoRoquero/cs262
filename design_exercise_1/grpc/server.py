@@ -4,6 +4,7 @@ import grpc
 import chat_app_pb2
 import chat_app_pb2_grpc
 from collections import defaultdict
+import fnmatch 
 
 
 class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
@@ -37,7 +38,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 
     def ListAll(self, request, context):
         filtered_users = chat_app_pb2.UserList()
-        filtered_users.users.extend([user for user in self.registered_users.users if user.username.startswith(request.username_filter)])
+        filtered_users.users.extend([user for user in self.registered_users.users if fnmatch.fnmatch(user.username, request.username_filter)])
         return filtered_users
 
     def DeleteUser(self, request, context):
@@ -72,7 +73,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     chat_app_pb2_grpc.add_ChatAppServicer_to_server(ChatAppServicer(), server)
-    server.add_insecure_port('10.250.227.245:50051')
+    server.add_insecure_port('192.168.0.114:50051')
     server.start()
     server.wait_for_termination()
 
