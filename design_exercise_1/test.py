@@ -77,7 +77,8 @@ class TestClientFunctions(unittest.TestCase):
         self.assertEqual(listall_reply['metadata']['message_type'], SRV_LISTALL)
         # asserts filtering by usename is correct 
         self.assertIn(self.username, listall_reply['message_content'])
-    
+        time.sleep(1)
+        
     def test_listall_startswith(self): 
         result = self.client.listall(self.username, 't*')
         time.sleep(1)

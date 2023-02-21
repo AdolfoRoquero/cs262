@@ -11,30 +11,26 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
     """Interface exported by the server.
     """
     def __init__(self):
-        leticia = chat_app_pb2.User(username = 'leticia')
-        adolfo = chat_app_pb2.User(username = 'adolfo')
-        users = [leticia, adolfo]
+        test_user = chat_app_pb2.User(username = 'test123')
+        users = [test_user]
         self.registered_users = chat_app_pb2.UserList()
         self.registered_users.users.extend(users)
         self.pending_messages = defaultdict(list) 
 
     def Login(self, request, context):
         """Missing associated documentation comment in .proto file."""
-        request_reply = chat_app_pb2.RequestReply()
         if request in self.registered_users.users: 
-            request_reply.reply = 'Success'
+            return chat_app_pb2.RequestReply(reply = 'Success', request_status = 1)
         else: 
-            request_reply.reply = 'Failure, username not registered'
-        return request_reply
+            return chat_app_pb2.RequestReply(reply = 'Failure, username not registered',
+             request_status = 0)
 
     def SignUp(self, request, context):
-        request_reply = chat_app_pb2.RequestReply()
         if request not in self.registered_users.users: 
-            request_reply.reply = 'Success'
             self.registered_users.users.append(request)
+            return chat_app_pb2.RequestReply(reply = 'Success', request_status = 1)
         else: 
-            request_reply.reply = 'Failure, username taken'
-        return request_reply
+            return chat_app_pb2.RequestReply(reply = 'Failure, username taken', request_status = 0)
 
     def ListAll(self, request, context):
         filtered_users = chat_app_pb2.UserList()
