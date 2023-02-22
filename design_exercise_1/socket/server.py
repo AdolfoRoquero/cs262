@@ -1,3 +1,9 @@
+"""Chat App - Socket Server Class
+
+This script defines the Socket server class that implements the Wire Protocol (as defined in protocol.py)
+
+This file can be imported as a module and can ALSO be run to spawn a running server.
+"""
 import socket
 import select
 from collections import defaultdict
@@ -31,10 +37,9 @@ class SocketServer():
     setup()
         Creates listening Socket for the server communication.
     run()
-
+        Continously runs server process to handle messages recieved from the clients.
 
     """
-
 
     def __init__(self, host, 
                        port, 
@@ -82,9 +87,7 @@ class SocketServer():
 
         Raises
         ------
-        NotImplementedError
-            If no sound is set for the animal or passed in as a
-            parameter.
+        TODO
         """
         while True:
             # Determine which sockets have content (ready to read)
