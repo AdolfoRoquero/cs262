@@ -2,9 +2,13 @@ import chat_app_pb2_grpc
 import chat_app_pb2
 from google.protobuf.timestamp_pb2 import Timestamp
 import grpc
+import os 
 
 def run():
-    with grpc.insecure_channel('192.168.0.114:50051') as channel:
+    HOST = os.environ['CHAT_APP_SERVER_HOST']
+    PORT = os.environ['CHAT_APP_SERVER_PORT']
+    channel_ = HOST + ':' + PORT
+    with grpc.insecure_channel(channel_) as channel:
         stub = chat_app_pb2_grpc.ChatAppStub(channel)
         while True: 
             register_or_login = input("New or existing user (N or E): ").strip().lower()

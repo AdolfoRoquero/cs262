@@ -5,13 +5,14 @@ import chat_app_pb2
 import chat_app_pb2_grpc
 from collections import defaultdict
 import fnmatch 
+import os
 
 
 class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
     """Interface exported by the server.
     """
     def __init__(self):
-        test_user = chat_app_pb2.User(username = 'test123')
+        test_user = chat_app_pb2.User(username = 'ROOT')
         users = [test_user]
         self.registered_users = chat_app_pb2.UserList()
         self.registered_users.users.extend(users)
@@ -20,16 +21,20 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
     def Login(self, request, context):
         """Missing associated documentation comment in .proto file."""
         if request in self.registered_users.users: 
+            print(f'user login success {request.username}')
             return chat_app_pb2.RequestReply(reply = 'Success', request_status = 1)
         else: 
+            print(f'user login failure {request.username}')
             return chat_app_pb2.RequestReply(reply = 'Failure, username not registered',
              request_status = 0)
 
     def SignUp(self, request, context):
         if request not in self.registered_users.users: 
             self.registered_users.users.append(request)
+            print(f'user signup success {request.username}')
             return chat_app_pb2.RequestReply(reply = 'Success', request_status = 1)
         else: 
+            print(f'user signup failed {request.username}')
             return chat_app_pb2.RequestReply(reply = 'Failure, username taken', request_status = 0)
 
     def ListAll(self, request, context):
@@ -55,7 +60,6 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
     
             if destinatary in self.registered_users.users: 
                 self.pending_messages[destinatary.username].append(request)
-        #TODO reply 
         return chat_app_pb2.RequestReply(request_status = 1)
          
     def ReceiveMessage(self, request, context):
@@ -69,7 +73,9 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     chat_app_pb2_grpc.add_ChatAppServicer_to_server(ChatAppServicer(), server)
-    server.add_insecure_port('192.168.0.114:50051')
+    HOST = os.environ['CHAT_APP_SERVER_HOST']
+    PORT = os.environ['CHAT_APP_SERVER_PORT']
+    server.add_insecure_port(f'{HOST}:{PORT}')
     server.start()
     server.wait_for_termination()
 

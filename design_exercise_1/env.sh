@@ -10,5 +10,5 @@
 #-------------------------------------------------------------------------------
 # Server Connection
 #-------------------------------------------------------------------------------
-export CHAT_APP_SERVER_HOST='10.250.226.121'
-export CHAT_APP_SERVER_PORT='59638'
+export CHAT_APP_SERVER_HOST='192.168.0.114'
+export CHAT_APP_SERVER_PORT='50051'
