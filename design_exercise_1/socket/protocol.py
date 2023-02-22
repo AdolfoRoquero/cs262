@@ -1,11 +1,21 @@
-# -----------------------------------------------------------------------------------
-# WIRE PROTOCOL DEFINITION
-# -----------------------------------------------------------------------------------
+"""Chat App - Socket Wire Protocol Constants
 
-# VERSION
+This script defines the following constants used for the Wire Protocol (WP):
+    - WP Version Number
+    - WP Message types
+    - WP Segment Header Sizes
+"""
+
+# -----------------------------------------------------------------------------------
+# Wire Protocol Version
+# -----------------------------------------------------------------------------------
 VERSION = '1.0'
 
-# MESSAGE TYPE FLAGS
+# -----------------------------------------------------------------------------------
+# Message Types
+# CL_ stands for Client-made Message types
+# SRV_ stands for Server-made Message types
+# -----------------------------------------------------------------------------------
 CL_SIGNUP = '1'
 CL_LOGIN = '2'
 CL_LISTALL = '3'
@@ -19,16 +29,21 @@ SRV_DEL_USER = '24'
 SRV_FORWARD_MSG = '25'
 SRV_MSG_FAILURE = '26'
 
-VALID_MESSAGE_TYPES = [CL_SIGNUP,CL_LOGIN,CL_LISTALL,CL_DEL_USER,CL_SEND_MSG,
-                       SRV_SIGNUP ,SRV_LOGIN ,SRV_LISTALL ,SRV_DEL_USER ,
-                       SRV_FORWARD_MSG ,SRV_MSG_FAILURE]
+VALID_MESSAGE_TYPES = [CL_SIGNUP, CL_LOGIN, CL_LISTALL, CL_DEL_USER, CL_SEND_MSG,
+                       SRV_SIGNUP, SRV_LOGIN, SRV_LISTALL, SRV_DEL_USER,
+                       SRV_FORWARD_MSG, SRV_MSG_FAILURE]
 
-# HEADER SIZES
+
+# -----------------------------------------------------------------------------------
+# Header Sizes (header size for the encoded length of a segment)
+# The existing segment types are:
+# Message Type segment, Username segment, Destinataries segment, Message segment,
+# Timestamp segment, Version segment
+# -----------------------------------------------------------------------------------
 MSG_TYPE_HDR_SZ = 3
 USERNAME_HDR_SZ = 3
 DESTINATARIES_HDR_SZ = 10 
 MSG_HDR_SZ = 3
-TIMESTAMP_SZ = 3
-VERSION_SZ = 1
+TIMESTAMP_HDR_SZ = 3
+VERSION_HDR_SZ = 1
 
-# MESSAGE METADATA

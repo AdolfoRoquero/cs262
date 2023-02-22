@@ -188,7 +188,7 @@ class SocketServer():
                                 sender_username_enc = encode_message_segment(message['metadata']['sender_name'], USERNAME_HDR_SZ)
 
                                 # timestamp message sent by client 
-                                sender_timestamp_enc = encode_message_segment(message['metadata']['timestamp'], TIMESTAMP_SZ)
+                                sender_timestamp_enc = encode_message_segment(message['metadata']['timestamp'], TIMESTAMP_HDR_SZ)
 
                                 message_body = (sender_username_enc +
                                                 sender_timestamp_enc +

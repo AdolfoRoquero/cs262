@@ -102,14 +102,14 @@ def create_metadata_header(msg_type, sender_name):
     """
 
     # Encoding of the Wire protocol version. 
-    version_enc = encode_message_segment(VERSION, VERSION_SZ)
+    version_enc = encode_message_segment(VERSION, VERSION_HDR_SZ)
 
     # Encoding of the Wire protocol message type.
     msg_type_enc = encode_message_segment(msg_type, MSG_TYPE_HDR_SZ)
 
     # Encoding of the timestamp at which the message is sent.
     timestamp = dt.now().strftime("%d/%m/%Y, %H:%M:%S")
-    timestamp_enc = encode_message_segment(timestamp, TIMESTAMP_SZ)
+    timestamp_enc = encode_message_segment(timestamp, TIMESTAMP_HDR_SZ)
 
     # Encoding of the sender username.
     sender_enc = encode_message_segment(sender_name, USERNAME_HDR_SZ)
@@ -134,7 +134,7 @@ def read_metadata_header(scket):
     """
 
     # Decoded Wire protocol version.
-    version = unpack_message_segment(scket, VERSION_SZ) 
+    version = unpack_message_segment(scket, VERSION_HDR_SZ) 
 
     if not version: 
         return False 
@@ -146,7 +146,7 @@ def read_metadata_header(scket):
         return False 
 
     # Decoded timestamp at which the message is sent.
-    timestamp = unpack_message_segment(scket, TIMESTAMP_SZ) 
+    timestamp = unpack_message_segment(scket, TIMESTAMP_HDR_SZ) 
 
     if not timestamp: 
         return False 

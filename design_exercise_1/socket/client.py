@@ -101,7 +101,7 @@ class Client():
             if not sender_username: 
                 return False
             
-            sender_timestamp = unpack_message_segment(self.client_socket, TIMESTAMP_SZ)
+            sender_timestamp = unpack_message_segment(self.client_socket, TIMESTAMP_HDR_SZ)
 
             if not sender_timestamp: 
                 return False
