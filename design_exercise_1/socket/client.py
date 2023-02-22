@@ -64,6 +64,7 @@ class Client():
         message_enc = encode_message_segment(msg, MSG_HDR_SZ)
 
         sent = self.client_socket.send(metadata_hdr + dest_enc + message_enc)
+        print(sent)
         return sent
 
     def close(self):

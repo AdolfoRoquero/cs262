@@ -56,6 +56,7 @@ def run():
                     chat_message = chat_app_pb2.ChatMessage(
                         sender = user, destinataries = chat_app_pb2.UserList(users=destinataries), 
                         text = message, date = msg_datetime)
+                    print(chat_message.ByteSize())
                     reply = stub.SendMessage(chat_message)
                 command = ''
 

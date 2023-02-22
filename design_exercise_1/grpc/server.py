@@ -12,7 +12,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
     """Interface exported by the server.
     """
     def __init__(self):
-        test_user = chat_app_pb2.User(username = 'ROOT')
+        test_user = chat_app_pb2.User(username = 'root')
         users = [test_user]
         self.registered_users = chat_app_pb2.UserList()
         self.registered_users.users.extend(users)
