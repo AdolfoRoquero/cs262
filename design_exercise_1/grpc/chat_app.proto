@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 // python -m grpc_tools.protoc -I=. --python_out=. --pyi_out=.  --grpc_python_out=. ./chat_app.proto
 
 syntax = "proto3";
@@ -43,19 +42,13 @@ service ChatApp {
 
 }
 
-// Points are represented as latitude-longitude pairs in the E7 representation
-// (degrees multiplied by 10**7 and rounded to the nearest integer).
-// Latitudes should be in the range +/- 90 degrees and longitude should be in
-// the range +/- 180 degrees (inclusive).
-
-
 message RequestReply {
-     string reply = 1;
+     string reply = 1; 
      int32 request_status = 2;
 }
 
 message User {
-    string username = 1; 
+    string username = 1; // Username (uniquely identifies user)
 }
 
 message UserList {
@@ -67,14 +60,10 @@ message ListAllRequest {
 }
 
 message ChatMessage {
-    User sender = 1;
-    UserList destinataries = 2;
-    string text = 3;
-    google.protobuf.Timestamp date = 4;
+    User sender = 1;  // Sender user of the message.
+    UserList destinataries = 2; // Destinatary users of the message.
+    string text = 3; // Text body of the message.
+    google.protobuf.Timestamp date = 4; // Datetime at which message is sent.
 }
 
 
-
-
-// python -m grpc_tools.protoc -I../../protos --python_out=. --pyi_out=. --grpc_python_out=. ../../protos/helloworld.proto
-// python -m grpc_tools.protoc -I=. --python_out=. --pyi_out=.  --grpc_python_out=. ./chat_app.proto

@@ -163,7 +163,7 @@ class TestListAll(unittest.TestCase):
     def setUp(self):
         self.client = Client(host=self.host, port=self.port)
         self.client.setup()
-        result = self.client.login('ROOT')
+        result = self.client.login('root')
         time.sleep(self.sleep_time)
         login_reply = self.client.receive_message()
         self.assertEqual(login_reply['metadata']['message_type'], SRV_LOGIN)
@@ -179,7 +179,7 @@ class TestListAll(unittest.TestCase):
         # asserts server correctly received and processed listall request 
         self.assertEqual(listall_reply['metadata']['message_type'], SRV_LISTALL)
         # asserts filtering by usename is correct 
-        self.assertEqual(['ROOT'] + self.fake_users , listall_reply['message_content'])
+        self.assertEqual(['root'] + self.fake_users , listall_reply['message_content'])
         
     def test_listall_startswith(self): 
         result = self.client.listall('B*')

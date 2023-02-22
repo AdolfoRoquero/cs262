@@ -24,7 +24,6 @@ class TestClient(unittest.TestCase):
         # Setup fake usernames
         with grpc.insecure_channel(f'{cls.host}:{cls.port}') as channel:
             for username in cls.fake_users: 
-                print(f"\tAdd {username}")
                 stub = chat_app_pb2_grpc.ChatAppStub(channel)
                 user = chat_app_pb2.User(username = username)
                 reply = stub.SignUp(user)
@@ -32,7 +31,6 @@ class TestClient(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        print("\n\nTearDownClass")
         # Setup fake usernames
         with grpc.insecure_channel(f'{cls.host}:{cls.port}') as channel:
             for username in cls.fake_users:
@@ -46,14 +44,14 @@ class TestClient(unittest.TestCase):
     def setUp(self):
         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
                 stub = chat_app_pb2_grpc.ChatAppStub(channel)
-                user = chat_app_pb2.User(username = 'ROOT')
+                user = chat_app_pb2.User(username = 'root')
                 reply = stub.Login(user)
                 self.assertEqual(1, reply.request_status)
             
 
     def test_invalid_login(self): 
         """
-        Test that logging in with a random username (not registered) is not successfull 
+        Test that logging in with a random username (not registered) is not successful.
         """
         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
             stub = chat_app_pb2_grpc.ChatAppStub(channel)
@@ -96,7 +94,7 @@ class TestClient(unittest.TestCase):
         """
         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
             stub = chat_app_pb2_grpc.ChatAppStub(channel)
-            user = chat_app_pb2.User(username = 'ROOT')
+            user = chat_app_pb2.User(username = 'root')
             reply = stub.SignUp(user)
             self.assertEqual(0, reply.request_status)
 
@@ -105,7 +103,7 @@ class TestClient(unittest.TestCase):
             stub = chat_app_pb2_grpc.ChatAppStub(channel)
             username_filter = chat_app_pb2.ListAllRequest(username_filter = '*')
             reply = stub.ListAll(username_filter) 
-            self.assertGreaterEqual(len(reply.users), 4)
+            self.assertGreaterEqual(len(reply.users), 3)
     
     def test_listall_filter(self): 
         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
@@ -165,7 +163,7 @@ class TestClient(unittest.TestCase):
         """
         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
             stub = chat_app_pb2_grpc.ChatAppStub(channel)
-            username = 'ROOT'
+            username = 'root'
             user = chat_app_pb2.User(username = username)
             reply = stub.Login(user)
             self.assertEqual(1, reply.request_status)

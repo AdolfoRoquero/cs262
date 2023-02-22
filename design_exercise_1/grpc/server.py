@@ -1,5 +1,10 @@
-from concurrent import futures
+"""Chat App - GRPC ChatAppServicer Class
 
+This script defines the GRPC ChatAppServicer class that implements the Wire Protocol (as defined in `chat_app.proto`)
+
+This file can be imported as a module and can ALSO be run to spawn a running server.
+"""
+from concurrent import futures
 import grpc
 import chat_app_pb2
 import chat_app_pb2_grpc
@@ -12,10 +17,9 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
     """Interface exported by the server.
     """
     def __init__(self):
-        test_user = chat_app_pb2.User(username = 'root')
-        users = [test_user]
+        root_user = chat_app_pb2.User(username = 'root')
         self.registered_users = chat_app_pb2.UserList()
-        self.registered_users.users.extend(users)
+        self.registered_users.users.extend([root_user])
         self.pending_messages = defaultdict(list) 
 
     def Login(self, request, context):
@@ -39,7 +43,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 
     def ListAll(self, request, context):
         filtered_users = chat_app_pb2.UserList()
-        filtered_users.users.extend([user for user in self.registered_users.users if fnmatch.fnmatch(user.username, request.username_filter)])
+        filtered_users.users.extend([user for user in self.registered_users.users if fnmatch.fnmatch(user.username, request.username_filter) and (user.username != 'root')])
         return filtered_users
 
     def DeleteUser(self, request, context):
