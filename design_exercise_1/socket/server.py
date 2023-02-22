@@ -1,3 +1,9 @@
+"""Chat App - Socket Server Class
+
+This script defines the Socket server class that implements the Wire Protocol (as defined in protocol.py)
+
+This file can be imported as a module and can ALSO be run to spawn a running server.
+"""
 import socket
 import select
 from collections import defaultdict
@@ -5,12 +11,11 @@ from protocol import *
 from utils import * 
 import fnmatch
 import os
-import re
+
 
 class SocketServer():
     """
     A class used to represent a Server using sockets for message sending.
-
 
     Attributes
     ----------
@@ -32,10 +37,9 @@ class SocketServer():
     setup()
         Creates listening Socket for the server communication.
     run()
-
+        Continously runs server process to handle messages recieved from the clients.
 
     """
-
 
     def __init__(self, host, 
                        port, 
@@ -54,7 +58,7 @@ class SocketServer():
 
         # Stores existing usernames 
         # Usernames have a length from 1 to 99 chars
-        self.usernames = usernames + ['ROOT']
+        self.usernames = usernames + ['root']
         # Stores connected sockets    
         self.clients = clients
         # store pending messages 
@@ -77,65 +81,63 @@ class SocketServer():
         self.socket_list = [self.server_socket]
 
     def run(self):
-        """Prints what the animals name is and what sound it makes.
+        """
+        Continously runs server process to handle messages recieved from the clients
 
-        If the argument `sound` isn't passed in, the default Animal
-        sound is used.
-
-        Parameters
-        ----------
-        sound : str, optional
-            The sound the animal makes (default is None)
 
         Raises
         ------
-        NotImplementedError
-            If no sound is set for the animal or passed in as a
-            parameter.
+        TODO
         """
         while True:
+            # Determine which sockets have content (ready to read)
             ready_to_read, ready_to_write, in_error = select.select(
                             self.socket_list,
                             self.socket_list,
                             [],
                             self.timeout)
         
+            # Handle each ready socket
             for sockt in ready_to_read:
 
                 # Accept new connections for server socket
                 if sockt == self.server_socket:
                     # Create new socket for send/receive from client
                     conn, addr = self.server_socket.accept()
-                    # print(conn, addr)
+
                     message = self.receive_message(conn)
                 
-                    # Login and Signup 
-                    if message['metadata']['message_type']  == CL_SIGNUP: 
+                    # Client Request to signup a new user
+                    if message['metadata']['message_type']  == CL_SIGNUP:
+                        
+                        # Check that the username is not already in use
                         if message['metadata']['sender_name'] in self.usernames: 
                             metadata_hdr = create_metadata_header(SRV_MSG_FAILURE, "server")
                             print(f"Failed signup attempt with username {message['metadata']['sender_name']}") 
                             msg_enc = encode_message_segment("Signup failed: username taken.", MSG_HDR_SZ)
                             sent = conn.send(metadata_hdr + msg_enc)
+
                             print('Message sent, %d bytes transmitted' % (sent)) 
 
                         else: 
-                            # Reply to client successfull connection 
+                            # Reply to client when sign up is successful 
                             metadata_hdr = create_metadata_header(SRV_SIGNUP, "server")
                             msg = "Signup successful!" 
                             msg_enc = encode_message_segment(msg, MSG_HDR_SZ)
                             sent = conn.send(metadata_hdr + msg_enc)
 
                             self.usernames.append(message['metadata']['sender_name'])
-                            print(f"New user {message['metadata']['sender_name']} added to database") 
                     
-                            # Add new socket to the list of sockets passed to select
+                            # Add new socket to the list of sockets to check for received messages (passed to select.select)
                             self.socket_list.append(conn)
 
+                            # Create a new connection for the username 
                             self.clients[conn] = {'username' : message['metadata']['sender_name'],
-                                            'addr': addr}
-                            print(f"Accepted new connection from user: {message['metadata']['sender_name']} at {addr[0]}:{addr[1]}")
+                                                  'addr': addr}
 
+                            print(f"New user {message['metadata']['sender_name']} added to database using connection at {addr[0]}:{addr[1]}") 
 
+                    # Client request to login
                     elif message['metadata']['message_type']  == CL_LOGIN: 
                         if message['metadata']['sender_name'] not in self.usernames:
                             print("Failed login attempt") 
@@ -177,19 +179,19 @@ class SocketServer():
                         del self.clients[sockt] 
                         continue
                     print('Message Received', message)
-
+                    
+                    # Client Request to send a message
                     if message['metadata']['message_type'] == CL_SEND_MSG: 
-                        # Message server reply 
                         for destinatary in message['destinataries']:
                             if destinatary in self.usernames: 
+                                # Send message to all the client sockets that the destinatary is logged in at. 
                                 dest_sockets = [client for client in self.clients if self.clients[client]['username'] == destinatary]
                                 
-                                # username of message sender 
+                                # Username of message sender 
                                 sender_username_enc = encode_message_segment(message['metadata']['sender_name'], USERNAME_HDR_SZ)
 
                                 # timestamp message sent by client 
-                                sender_timestamp = message['metadata']['timestamp']
-                                sender_timestamp_enc = encode_message_segment(message['metadata']['timestamp'], TIMESTAMP_SZ)
+                                sender_timestamp_enc = encode_message_segment(message['metadata']['timestamp'], TIMESTAMP_HDR_SZ)
 
                                 message_body = (sender_username_enc +
                                                 sender_timestamp_enc +
@@ -199,17 +201,16 @@ class SocketServer():
                                     for dest_sockt in dest_sockets: 
                                         metadata_hdr = create_metadata_header(SRV_FORWARD_MSG, "server")
                                         dest_sockt.send(metadata_hdr + message_body)
-
                                         print(f"Message sent from user {self.clients[sockt]['username']} to {destinatary}: {message['encoded_message'].decode('utf-8').strip()}")
                                 else: 
+                                    # Messages that are destined to users that are not logged in
                                     self.pending_messages[destinatary].append(message_body)
-                    # LISTALL REQUEST
+
+                    # Client Request to list all users
                     if message['metadata']['message_type'] == CL_LISTALL: 
                         metadata_hdr =  create_metadata_header(SRV_LISTALL, "server")
                         if message['username_filter']:
-                            listed_usernames = ",".join([name for name in self.usernames if fnmatch.fnmatch(name, message['username_filter'])])
-                            # listed_usernames = ",".join([name for name in self.usernames if re.match(name, fr"{message['username_filter']}")])
-                            print(listed_usernames)
+                            listed_usernames = ",".join([name for name in self.usernames if fnmatch.fnmatch(name, message['username_filter']) and (name != 'root')])
                         else:
                             listed_usernames = ",".join(self.usernames)
                         
@@ -220,7 +221,7 @@ class SocketServer():
                         )
                         print('Message sent, %d bytes transmitted' % (sent)) 
 
-                    # DELETE USER REQUEST 
+                    # Client Request to delete its account
                     if message['metadata']['message_type'] == CL_DEL_USER: 
                         print(f"Delete user request from user: {self.clients[sockt]['username']} at {self.clients[sockt]['addr'][0]}:{self.clients[sockt]['addr'][1]}")
                         self.socket_list.remove(sockt)
@@ -236,21 +237,15 @@ class SocketServer():
 
     @staticmethod
     def receive_message(scket):
-        """Prints what the animals name is and what sound it makes.
+        """
+        Read message from specific socket that is ready to be read from
+        (according to select.select)
 
-        If the argument `sound` isn't passed in, the default Animal
-        sound is used.
 
         Parameters
         ----------
-        sound : str, optional
-            The sound the animal makes (default is None)
-
-        Raises
-        ------
-        NotImplementedError
-            If no sound is set for the animal or passed in as a
-            parameter.
+        skcet : socket.Socket
+            The socket that is ready to be read from
         """
         try: 
             # Read metadata 
@@ -269,10 +264,10 @@ class SocketServer():
                 message['username_filter'] = username_filter
                 return message    
                 
-            # Message Client Request 
+            # Client Request to send a message to a destinatary
             elif metadata['message_type'] == CL_SEND_MSG: 
                 # Read destinataries 
-                destinataries_str = unpack_from_header(scket, DESTINATARIES_HDR_SZ)
+                destinataries_str = unpack_message_segment(scket, DESTINATARIES_HDR_SZ)
 
                 if not destinataries_str: 
                     return False 
