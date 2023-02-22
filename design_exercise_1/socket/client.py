@@ -5,23 +5,22 @@ from protocol import *
 from utils import * 
 import traceback
 from functools import wraps
+import os
 
-
-# TODO read IP from config file
-PORT = 6000
 
 
 class Client():
-    def __init__(self, host=socket.gethostname(), 
-                       port=6000):
+    def __init__(self, host, 
+                       port):
         self.host = host
-        self.port = port
+        self.port = int(port)
         
         self.is_logged_in = False
 
     def setup(self):
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_socket.connect((self.host, self.port))
+        # print(f"Client connected to host {self.host}:{self.port}")
         self.client_socket.setblocking(False)
     
     def login(self, username):
@@ -38,11 +37,11 @@ class Client():
         self.is_logged_in = True
         return sent
     
-    def listall(self, username, username_filter):
+    def listall(self, username_filter):
         if not self.is_logged_in:
             raise Exception("ListAll requires the client to be logged in")
 
-        metadata_hdr = create_metadata_header(CL_LISTALL, username)
+        metadata_hdr = create_metadata_header(CL_LISTALL, self.username)
         username_filter_enc = encode_message_segment(username_filter, MSG_HDR_SZ)
         sent = self.client_socket.send(metadata_hdr + username_filter_enc)        
         return sent
@@ -123,8 +122,8 @@ class Client():
 
 
 if __name__ == '__main__':
-    HOST = "192.168.0.114"
-    client = Client(host=HOST)
+    client = Client(host=os.environ['CHAT_APP_SERVER_HOST'],
+                    port=os.environ['CHAT_APP_SERVER_PORT'])
     client.setup()
 
     waiting_for_response = False
@@ -157,7 +156,7 @@ if __name__ == '__main__':
         if command.startswith("listall"):
 
             username_filter = command.replace('listall', '').strip()
-            sent = client.listall(username, username_filter) 
+            sent = client.listall(username_filter) 
             waiting_for_response = True
             command = ''
         

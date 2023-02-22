@@ -4,33 +4,72 @@ from collections import defaultdict
 from protocol import *
 from utils import * 
 import fnmatch
+import os
+import re
+
+class SocketServer():
+    """
+    A class used to represent a Server using sockets for message sending
+
+    ...
+
+    Attributes
+    ----------
+    host : str
+        IP address in which the server is running
+    port : int
+        Port number used for communication with server
+    timeout : int
+        Timeout in secondes for the select.select (default is 60)
+    usernames : list of str
+        list of usernames that have an account
+    clients : dict of socket: {username:, addr:}
+        dictionary of all connected sockets
+    pending_messages : dict of {username: [message]}
+        dictionary that, for every username, lists the pending messages that have not been forwarded
+    
+    Methods
+    -------
+    setup()
+        Creates listening Socket for the server communication.
+    run()
 
 
-class Server():
-    def __init__(self, host='192.168.0.114', 
-                       port=6000, 
+    """
+
+
+    def __init__(self, host, 
+                       port, 
                        timeout=60, 
                        usernames=[],
                        clients={},
                        pending_messages=defaultdict(list)):
-        
+        """
+        Initializes all the class attributes.
+
+        """
+
         self.host = host
-        print(host)
-        self.port = port
+        self.port = int(port)
         self.timeout = timeout
 
         # Stores existing usernames 
         # Usernames have a length from 1 to 99 chars
-        self.usernames = usernames
+        self.usernames = usernames + ['ROOT']
         # Stores connected sockets    
-        # Key: socket, val: {username: , addr:}
         self.clients = clients
         # store pending messages 
-        # Key: username, val: [message]
         self.pending_messages = pending_messages
+
+        print(f'Running server on host {host}:{port}')
+
 
     
     def setup(self):
+        """
+        Creates listening Socket for the server communication.
+
+        """
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server_socket.bind((self.host, self.port))
@@ -39,6 +78,22 @@ class Server():
         self.socket_list = [self.server_socket]
 
     def run(self):
+        """Prints what the animals name is and what sound it makes.
+
+        If the argument `sound` isn't passed in, the default Animal
+        sound is used.
+
+        Parameters
+        ----------
+        sound : str, optional
+            The sound the animal makes (default is None)
+
+        Raises
+        ------
+        NotImplementedError
+            If no sound is set for the animal or passed in as a
+            parameter.
+        """
         while True:
             ready_to_read, ready_to_write, in_error = select.select(
                             self.socket_list,
@@ -52,14 +107,14 @@ class Server():
                 if sockt == self.server_socket:
                     # Create new socket for send/receive from client
                     conn, addr = self.server_socket.accept()
-                    print(conn, addr)
+                    # print(conn, addr)
                     message = self.receive_message(conn)
                 
                     # Login and Signup 
                     if message['metadata']['message_type']  == CL_SIGNUP: 
                         if message['metadata']['sender_name'] in self.usernames: 
                             metadata_hdr = create_metadata_header(SRV_MSG_FAILURE, "server")
-                            print("Failed signup attempt") 
+                            print(f"Failed signup attempt with username {message['metadata']['sender_name']}") 
                             msg_enc = encode_message_segment("Signup failed: username taken.", MSG_HDR_SZ)
                             sent = conn.send(metadata_hdr + msg_enc)
                             print('Message sent, %d bytes transmitted' % (sent)) 
@@ -152,11 +207,17 @@ class Server():
                     # LISTALL REQUEST
                     if message['metadata']['message_type'] == CL_LISTALL: 
                         metadata_hdr =  create_metadata_header(SRV_LISTALL, "server")
-                        filtered_usernames = ",".join([name for name in self.usernames if fnmatch.fnmatch(name, message['username_filter'])])
-                        dest_enc = encode_message_segment(filtered_usernames, DESTINATARIES_HDR_SZ)                
+                        if message['username_filter']:
+                            listed_usernames = ",".join([name for name in self.usernames if fnmatch.fnmatch(name, message['username_filter'])])
+                            # listed_usernames = ",".join([name for name in self.usernames if re.match(name, fr"{message['username_filter']}")])
+                            print(listed_usernames)
+                        else:
+                            listed_usernames = ",".join(self.usernames)
+                        
+                        dest_enc = encode_message_segment(listed_usernames, DESTINATARIES_HDR_SZ)                
                         sent = sockt.send(
                             metadata_hdr +
-                            dest_enc 
+                            dest_enc
                         )
                         print('Message sent, %d bytes transmitted' % (sent)) 
 
@@ -176,6 +237,22 @@ class Server():
 
     @staticmethod
     def receive_message(scket):
+        """Prints what the animals name is and what sound it makes.
+
+        If the argument `sound` isn't passed in, the default Animal
+        sound is used.
+
+        Parameters
+        ----------
+        sound : str, optional
+            The sound the animal makes (default is None)
+
+        Raises
+        ------
+        NotImplementedError
+            If no sound is set for the animal or passed in as a
+            parameter.
+        """
         try: 
             # Read metadata 
             metadata = read_metadata_header(scket)
@@ -224,7 +301,8 @@ class Server():
 
 
 if __name__ == '__main__':
-    server = Server()
+    server = SocketServer(host=os.environ['CHAT_APP_SERVER_HOST'],
+                          port=os.environ['CHAT_APP_SERVER_PORT'])
     server.setup()
     server.run()
     

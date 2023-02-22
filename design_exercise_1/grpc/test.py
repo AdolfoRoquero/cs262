@@ -8,6 +8,7 @@ import grpc
 
 
 HOST = "192.168.0.114"
+PORT = "50051"
 
 class TestClient(unittest.TestCase):
     
@@ -15,7 +16,7 @@ class TestClient(unittest.TestCase):
         """
         Test that logging in with a random username (not registered) is not successfull 
         """
-        with grpc.insecure_channel('192.168.0.114:50051') as channel:
+        with grpc.insecure_channel(f'{HOST}:{PORT}') as channel:
             stub = chat_app_pb2_grpc.ChatAppStub(channel)
             letters = string.ascii_lowercase
             random_username = ''.join(random.choice(letters) for i in range(10))
@@ -27,7 +28,7 @@ class TestClient(unittest.TestCase):
         """
         Test that logging in with a registered username is successfull 
         """
-        with grpc.insecure_channel('192.168.0.114:50051') as channel:
+        with grpc.insecure_channel(f'{HOST}:{PORT}') as channel:
             stub = chat_app_pb2_grpc.ChatAppStub(channel)
             user = chat_app_pb2.User(username = 'test123')
             reply = stub.Login(user)
@@ -40,7 +41,7 @@ class TestClient(unittest.TestCase):
         """
         Test that signing up with a random username (not registered) is successfull 
         """
-        with grpc.insecure_channel('192.168.0.114:50051') as channel:
+        with grpc.insecure_channel(f'{HOST}:{PORT}') as channel:
             stub = chat_app_pb2_grpc.ChatAppStub(channel)
             letters = string.ascii_lowercase
             random_username = ''.join(random.choice(letters) for i in range(10))
@@ -55,7 +56,7 @@ class TestClient(unittest.TestCase):
         """
         Test that signing up with a registered username is not successful 
         """
-        with grpc.insecure_channel('192.168.0.114:50051') as channel:
+        with grpc.insecure_channel(f'{HOST}:{PORT}') as channel:
             stub = chat_app_pb2_grpc.ChatAppStub(channel)
             user = chat_app_pb2.User(username = 'test123')
             reply = stub.SignUp(user)
@@ -65,7 +66,7 @@ class TestClient(unittest.TestCase):
             print(reply)
 
     def test_listall(self): 
-        with grpc.insecure_channel('192.168.0.114:50051') as channel:
+        with grpc.insecure_channel(f'{HOST}:{PORT}') as channel:
             stub = chat_app_pb2_grpc.ChatAppStub(channel)
             username_filter = chat_app_pb2.ListAllRequest(username_filter = '*')
             reply = stub.ListAll(username_filter) 
@@ -73,7 +74,7 @@ class TestClient(unittest.TestCase):
             # self.assertGreaterEqual(len(reply.users), 2)
     
     def test_listall_filter(self): 
-        with grpc.insecure_channel('192.168.0.114:50051') as channel:
+        with grpc.insecure_channel(f'{HOST}:{PORT}') as channel:
             stub = chat_app_pb2_grpc.ChatAppStub(channel)
             username_filter = chat_app_pb2.ListAllRequest(username_filter = 't*')
             reply = stub.ListAll(username_filter) 
@@ -85,7 +86,7 @@ class TestClient(unittest.TestCase):
         """
         Test that deleting a user is successful 
         """
-        with grpc.insecure_channel('192.168.0.114:50051') as channel:
+        with grpc.insecure_channel(f'{HOST}:{PORT}') as channel:
             stub = chat_app_pb2_grpc.ChatAppStub(channel)
             user = chat_app_pb2.User(username = 'test123')
             reply = stub.DeleteUser(user)
@@ -93,5 +94,4 @@ class TestClient(unittest.TestCase):
 
     
 if __name__ == '__main__':
-    HOST = "192.168.0.114"
     unittest.main()
