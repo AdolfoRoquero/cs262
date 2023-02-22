@@ -210,11 +210,12 @@ class SocketServer():
                     if message['metadata']['message_type'] == CL_LISTALL: 
                         metadata_hdr =  create_metadata_header(SRV_LISTALL, "server")
                         if message['username_filter']:
-                            listed_usernames = ",".join([name for name in self.usernames if fnmatch.fnmatch(name, message['username_filter']) and (name != 'root')])
+                            listed_usernames = [name for name in self.usernames if fnmatch.fnmatch(name, message['username_filter']) and name != 'root']
                         else:
-                            listed_usernames = ",".join(self.usernames)
-                        
-                        dest_enc = encode_message_segment(listed_usernames, DESTINATARIES_HDR_SZ)                
+                            listed_usernames = self.usernames.copy()
+                            listed_usernames.remove('root')
+
+                        dest_enc = encode_message_segment(",".join(listed_usernames), DESTINATARIES_HDR_SZ)                
                         sent = sockt.send(
                             metadata_hdr +
                             dest_enc
