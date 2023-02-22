@@ -14,9 +14,7 @@
 // python -m grpc_tools.protoc -I=. --python_out=. --pyi_out=.  --grpc_python_out=. ./chat_app.proto
 
 syntax = "proto3";
-
 import "google/protobuf/timestamp.proto";
-
 
 option java_multiple_files = true;
 option java_package = "io.grpc.examples.chatAPP";
@@ -28,37 +26,60 @@ package chatapp;
 // Interface exported by the server.
 service ChatApp {
 
+  // Request to log in User into the platform 
+  // if the username already exists.
   rpc Login(User) returns (RequestReply); 
 
+  // Request to sign up new User into the platform 
+  // (only if the username is not taken).
   rpc SignUp(User) returns (RequestReply); 
 
+  // Request to list all users in the platform 
+  // that match a given filter in ListAllRequest.
   rpc ListAll(ListAllRequest) returns (UserList); 
-
+  
+  // Request to delete User.
   rpc DeleteUser(User) returns (RequestReply);
 
+  // Request to send a message (all sending info contained in ChatMessage)
   rpc SendMessage(ChatMessage) returns (RequestReply);
 
+  // Request to receive ALL pending messages for a given user. 
   rpc ReceiveMessage(User) returns (stream ChatMessage);
 
 }
 
+// message RequestReply
+// Standard object for Server message replies indicating the 
+// status of the request
 message RequestReply {
      string reply = 1; 
      int32 request_status = 2;
 }
 
+// message User
+// Represents the User object (only username in this case)
 message User {
     string username = 1; // Username (uniquely identifies user)
 }
 
+// message UserList
+// Represents a list of User objects 
+// It is used when fetching a list of users (Listall) 
+// and to declare a list of destinataries
 message UserList {
-    repeated User users = 1;
+    repeated User users = 1; // List of Users
 }
 
+// message ListAllRequest
+// Represents the query information for ListAll queries.
 message ListAllRequest {
     string username_filter = 1; 
 }
 
+// message ChatMessage
+// Represent the Message object with the text content and 
+// metadata (sender, destinataries and timestamp)
 message ChatMessage {
     User sender = 1;  // Sender user of the message.
     UserList destinataries = 2; // Destinatary users of the message.

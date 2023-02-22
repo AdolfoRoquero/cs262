@@ -7,10 +7,6 @@ from google.protobuf.timestamp_pb2 import Timestamp
 import grpc
 import os 
 
-
-# HOST = "192.168.0.114"
-# PORT = "50051"
-
 class TestClient(unittest.TestCase):
     host = os.environ['CHAT_APP_SERVER_HOST']
     port = os.environ['CHAT_APP_SERVER_PORT']
