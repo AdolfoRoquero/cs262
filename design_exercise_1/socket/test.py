@@ -337,7 +337,7 @@ class TestSendReceiveMessages(unittest.TestCase):
         # Check if new logged in user receives undelivered messages
         D_client = Client(host=self.host, port=self.port)
         D_client.setup()
-        result = D_client.login('B_user')
+        result = D_client.login('D_user')
         time.sleep(self.sleep_time)
         login_reply = D_client.receive_message()
         assert (login_reply['metadata']['message_type'] == SRV_LOGIN)
@@ -348,7 +348,7 @@ class TestSendReceiveMessages(unittest.TestCase):
         self.assertEqual(D_receive['message_content'], message)
         D_client.close()
         
-        time.sleep(self.sleep_time)
+        time.sleep(10)
 
 
 
