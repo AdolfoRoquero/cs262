@@ -314,17 +314,17 @@ if __name__ == '__main__':
                         print(f'{username} > {",".join(message["message_content"])}')
                         waiting_for_response = False
                     elif message['metadata']['message_type'] == SRV_DEL_USER:
-                        if message['message_content'] == "Success":
+                        if message['message_content'] == SUCCESS:
                             print(f"User {username} deleted. Closing Connection")
                             client.close()
                             sys.exit()
                     elif message['metadata']['message_type'] == SRV_MSG_FAILURE:
-                        print(f"Server Error: {message['message_content']}\nClosing Connection")
+                        print(f"Server Error: {SRV_RPLY_TEXT[message['message_content']]}\nClosing Connection")
                         client.close()
                         sys.exit()
                     elif message['metadata']['message_type'] in [SRV_LOGIN, SRV_SIGNUP]:  
                         waiting_for_response = False
-                    
+
                     else: 
                         print(f'{message["sender_timestamp"][:-3]} {message["sender_username"]} > {message["message_content"]}')
                 

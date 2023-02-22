@@ -84,10 +84,6 @@ class SocketServer():
         """
         Continously runs server process to handle messages recieved from the clients
 
-
-        Raises
-        ------
-        TODO
         """
         while True:
             # Determine which sockets have content (ready to read)
@@ -114,16 +110,14 @@ class SocketServer():
                         if message['metadata']['sender_name'] in self.usernames: 
                             metadata_hdr = create_metadata_header(SRV_MSG_FAILURE, "server")
                             print(f"Failed signup attempt with username {message['metadata']['sender_name']}") 
-                            msg_enc = encode_message_segment("Signup failed: username taken.", MSG_HDR_SZ)
+                            msg_enc = encode_message_segment(USERNAME_TAKEN_FAILURE, MSG_HDR_SZ)
                             sent = conn.send(metadata_hdr + msg_enc)
-
                             print('Message sent, %d bytes transmitted' % (sent)) 
 
                         else: 
                             # Reply to client when sign up is successful 
                             metadata_hdr = create_metadata_header(SRV_SIGNUP, "server")
-                            msg = "Signup successful!" 
-                            msg_enc = encode_message_segment(msg, MSG_HDR_SZ)
+                            msg_enc = encode_message_segment(SUCCESS, MSG_HDR_SZ)
                             sent = conn.send(metadata_hdr + msg_enc)
 
                             self.usernames.append(message['metadata']['sender_name'])
@@ -140,18 +134,15 @@ class SocketServer():
                     # Client request to login
                     elif message['metadata']['message_type']  == CL_LOGIN: 
                         if message['metadata']['sender_name'] not in self.usernames:
-                            print("Failed login attempt") 
                             metadata_hdr = create_metadata_header(SRV_MSG_FAILURE, "server")
-                            msg = "Login failed: invalid username" 
-                            msg_enc = encode_message_segment(msg, MSG_HDR_SZ)
+                            msg_enc = encode_message_segment(INVALID_USERNAME_FAILURE, MSG_HDR_SZ)
                             sent = conn.send(metadata_hdr + msg_enc)
-                            print('Message sent, %d/%d bytes transmitted' % (sent, len(msg))) 
+                            print('Message sent, %d bytes transmitted' % (sent)) 
 
                         else:             
                             # Reply to client successfull connection 
                             metadata_hdr = create_metadata_header(SRV_LOGIN, "server")
-                            msg = "Login successful!" 
-                            msg_enc = encode_message_segment(msg, MSG_HDR_SZ)
+                            msg_enc = encode_message_segment(SUCCESS, MSG_HDR_SZ)
                             sent = conn.send(metadata_hdr + msg_enc)
 
                             # Add new socket to the list of sockets passed to select
@@ -169,7 +160,7 @@ class SocketServer():
                         
                             del self.pending_messages[self.clients[conn]['username']]
                     else: 
-                        pass # handle this 
+                        pass 
 
                 else:
                     message = self.receive_message(sockt)
@@ -231,7 +222,7 @@ class SocketServer():
                             del self.pending_messages[self.clients[sockt]['username']]
                         del self.clients[sockt] 
                         metadata_hdr =  create_metadata_header(SRV_DEL_USER, "server")
-                        msg_enc = encode_message_segment("Success", MSG_HDR_SZ)
+                        msg_enc = encode_message_segment(SUCCESS, MSG_HDR_SZ)
                         sent = sockt.send(metadata_hdr + msg_enc)
                         print('Message sent, %d bytes transmitted' % (sent)) 
 
