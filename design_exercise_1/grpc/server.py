@@ -83,9 +83,13 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         """
 
         filtered_users = chat_app_pb2.UserList()
-        filtered_users.users.extend([user for user in self.registered_users.users 
+        if request.username_filter:
+            filtered_users.users.extend([user for user in self.registered_users.users 
                                      if fnmatch.fnmatch(user.username, request.username_filter) 
                                      and (user.username != 'root')])
+        else:
+            filtered_users.users.extend([user for user in self.registered_users.users if (user.username != 'root')])
+            
         return filtered_users
 
     def DeleteUser(self, request, context):
@@ -102,9 +106,11 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         RequestReply :
             Indicates Success or Failure of the deletion.
         """
+        print("Len reg users ", len(self.registered_users.users))
         updated_registered_users = chat_app_pb2.UserList()
         for user in self.registered_users.users:
             if user.username != request.username: 
+                print("\nappend", user.username )
                 updated_registered_users.users.append(user)
         if len(self.registered_users.users) - 1 == len(updated_registered_users.users): 
             self.registered_users = updated_registered_users
