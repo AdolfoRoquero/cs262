@@ -9,9 +9,8 @@ import re
 
 class SocketServer():
     """
-    A class used to represent a Server using sockets for message sending
+    A class used to represent a Server using sockets for message sending.
 
-    ...
 
     Attributes
     ----------
