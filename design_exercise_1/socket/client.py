@@ -85,23 +85,23 @@ class Client():
 
         if message['metadata']['message_type'] == SRV_LISTALL: 
             # Read destinataries 
-            message_content_str = unpack_from_header(self.client_socket, DESTINATARIES_HDR_SZ)
+            message_content_str = unpack_message_segment(self.client_socket, DESTINATARIES_HDR_SZ)
             message['message_content'] = message_content_str.split(',')
             return message
 
         elif message['metadata']['message_type'] in [SRV_DEL_USER, SRV_MSG_FAILURE, SRV_SIGNUP, SRV_LOGIN]:
-            message_content = unpack_from_header(self.client_socket, MSG_HDR_SZ)
+            message_content = unpack_message_segment(self.client_socket, MSG_HDR_SZ)
             if not message_content: 
                 return False 
             message['message_content'] = message_content
             return message
 
         elif message['metadata']['message_type'] == SRV_FORWARD_MSG: 
-            sender_username =  unpack_from_header(self.client_socket, USERNAME_HDR_SZ)
+            sender_username =  unpack_message_segment(self.client_socket, USERNAME_HDR_SZ)
             if not sender_username: 
                 return False
             
-            sender_timestamp = unpack_from_header(self.client_socket, TIMESTAMP_SZ)
+            sender_timestamp = unpack_message_segment(self.client_socket, TIMESTAMP_SZ)
 
             if not sender_timestamp: 
                 return False
