@@ -126,7 +126,7 @@ class TestLoginSignUpDelete(unittest.TestCase):
 class TestListAll(unittest.TestCase):
     host = os.environ['CHAT_APP_SERVER_HOST']
     port = os.environ['CHAT_APP_SERVER_PORT']
-    sleep_time = 2
+    sleep_time = 1
     fake_users = ['A_user', 'B_user', 'C_user']
       
     @classmethod
@@ -179,7 +179,7 @@ class TestListAll(unittest.TestCase):
         # asserts server correctly received and processed listall request 
         self.assertEqual(listall_reply['metadata']['message_type'], SRV_LISTALL)
         # asserts filtering by usename is correct 
-        self.assertEqual(['root'] + self.fake_users , listall_reply['message_content'])
+        self.assertEqual(self.fake_users , listall_reply['message_content'])
         
     def test_listall_startswith(self): 
         result = self.client.listall('B*')
@@ -208,7 +208,7 @@ class TestListAll(unittest.TestCase):
 class TestSendReceiveMessages(unittest.TestCase):
     host = os.environ['CHAT_APP_SERVER_HOST']
     port = os.environ['CHAT_APP_SERVER_PORT']
-    sleep_time = 2
+    sleep_time = 1
     fake_users = ['A_user', 'B_user', 'C_user', 'D_user']
       
     @classmethod

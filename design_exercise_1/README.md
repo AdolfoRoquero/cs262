@@ -38,5 +38,15 @@ For troubleshooting the installation of GRPC packages, go to https://grpc.io/doc
 6. Interact with the prompts in the Client Terminal
 
 
+## Testing the code: Step-by-step guide
+- Socket:
+    1. Run `python socket/server.py`
+    2. Run `python socket/test.py`
+- GRPC:
+    1. Run `python grpc/server.py`
+    2. Run `python grpc/test.py`
+
+
+
 
 
