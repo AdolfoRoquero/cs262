@@ -8,7 +8,7 @@ import os
 
 
 def run(): 
-    host = '192.168.0.114'
+    host = '127.0.0.1'
     port = '50051'
     setup_client = Client(host=host, 
                                   port=port)
@@ -18,7 +18,6 @@ def run():
     # signup message size 
     result = setup_client.sign_up(username)
     print(f'CLIENT signup message: {result}')
-    
 
     # login message size 
     result = setup_client.login(username)
@@ -51,7 +50,7 @@ def run():
     # receive message size 
     result = setup_client.receive_message()
     print(f'CLIENT receive message: {result}')
-    
+
     # delete_user message size 
     result = setup_client.del_user()
     print(f'CLIENT delete user: {result}')

@@ -8,7 +8,7 @@ import os
 
 
 def run(): 
-    host = '192.168.0.114'
+    host = '127.0.0.1'
     port = '50051'
     channel = host + ':' + port
 
@@ -19,11 +19,13 @@ def run():
         print(f'CLIENT signup message: {user.ByteSize()}')
         print(f'CLIENT login message: {user.ByteSize()}')
         reply = stub.SignUp(user)
+        print(f'SERVER login message reply: {reply.ByteSize()}')
 
         # listall message size 
         username_filter = chat_app_pb2.ListAllRequest(username_filter = '*')
-        # reply = stub.ListAll(username_filter) 
+        reply = stub.ListAll(username_filter) 
         print(f'CLIENT listall "*": {username_filter.ByteSize()}')
+        print(f'SERVER listall reply "*": {reply.ByteSize()}')
 
         # listall message size with filter
         letters = string.ascii_lowercase
@@ -41,7 +43,9 @@ def run():
         chat_message = chat_app_pb2.ChatMessage(
                             sender = user, destinataries = chat_app_pb2.UserList(users=[user2]), 
                             text = msg_text, date = msg_datetime)
+        reply = stub.SendMessage(chat_message)
         print(f'CLIENT send message "{msg_text}": {chat_message.ByteSize()}')
+        print(f'SERVER send message reply: {reply.ByteSize()}')
 
         # send message message size 
         message = ""
@@ -53,10 +57,14 @@ def run():
                             sender = user, destinataries = chat_app_pb2.UserList(users=[user2]), 
                             text = msg_text, date = msg_datetime)
         print(f'CLIENT send message "{msg_text}": {chat_message.ByteSize()}')
+        reply = stub.SendMessage(chat_message)
+        print(f'SERVER send message reply: {reply.ByteSize()}')
+
 
         # delete_user message size 
         print(f'CLIENT delete user: {user.ByteSize()}')
-
+        reply = stub.DeleteUser(user)
+        print(f'SERVER delete user reply: {reply.ByteSize()}')
         # receive message size 
         print(f'CLIENT receive message: {user.ByteSize()}')
 
