@@ -47,3 +47,23 @@ MSG_HDR_SZ = 3
 TIMESTAMP_HDR_SZ = 3
 VERSION_HDR_SZ = 1
 
+# -----------------------------------------------------------------------------------
+# Server Reply Statuses
+# When returning success or failure, Server provides more information as part of the
+# message body. The different Statuses are used to print different error messages
+# without having to send the message itself over the wire.
+# -----------------------------------------------------------------------------------
+
+FAILURE = '0'
+SUCCESS = '1'
+USERNAME_TAKEN_FAILURE = '2'  # "Signup failed: username taken."
+INVALID_USERNAME_FAILURE = '3' # Login failed: username doesn't exist
+
+
+SRV_RPLY_TEXT = {
+    FAILURE : 'Request Failed',
+    SUCCESS : 'Request Succeded',
+    USERNAME_TAKEN_FAILURE: 'Username already taken',
+    INVALID_USERNAME_FAILURE: "Invalid username" 
+}
+

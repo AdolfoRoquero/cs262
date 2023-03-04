@@ -83,9 +83,13 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         """
 
         filtered_users = chat_app_pb2.UserList()
-        filtered_users.users.extend([user for user in self.registered_users.users 
+        if request.username_filter:
+            filtered_users.users.extend([user for user in self.registered_users.users 
                                      if fnmatch.fnmatch(user.username, request.username_filter) 
                                      and (user.username != 'root')])
+        else:
+            filtered_users.users.extend([user for user in self.registered_users.users if (user.username != 'root')])
+            
         return filtered_users
 
     def DeleteUser(self, request, context):

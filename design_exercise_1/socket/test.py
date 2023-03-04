@@ -78,6 +78,8 @@ class TestLoginSignUpDelete(unittest.TestCase):
         login_reply = self.client.receive_message()
         # asserts login on the server side failed 
         self.assertEqual(login_reply['metadata']['message_type'], SRV_MSG_FAILURE)
+        self.assertEqual(login_reply['message_content'], INVALID_USERNAME_FAILURE)
+
         
     
     def test_valid_signup(self):
@@ -92,6 +94,8 @@ class TestLoginSignUpDelete(unittest.TestCase):
         signup_reply = self.client.receive_message()
         # asserts login on the server side failed 
         self.assertEqual(signup_reply['metadata']['message_type'], SRV_SIGNUP)
+        self.assertEqual(signup_reply['message_content'], SUCCESS)
+
 
     def test_invalid_signup(self):
         """Test that signing up with an already existing account username fails."""
@@ -105,6 +109,8 @@ class TestLoginSignUpDelete(unittest.TestCase):
         signup_reply = self.client.receive_message()
         # asserts login on the server side failed 
         self.assertEqual(signup_reply['metadata']['message_type'], SRV_MSG_FAILURE)
+        self.assertEqual(signup_reply['message_content'], USERNAME_TAKEN_FAILURE)
+
     
     def test_del_user(self):
         """Test that deleting one's own username works."""
@@ -120,6 +126,7 @@ class TestLoginSignUpDelete(unittest.TestCase):
         time.sleep(self.sleep_time)
         del_user_reply = self.client.receive_message()
         self.assertEqual(del_user_reply['metadata']['message_type'], SRV_DEL_USER)
+        self.assertEqual(del_user_reply['message_content'], SUCCESS)
         self.fake_users.remove('user_to_delete')
 
 

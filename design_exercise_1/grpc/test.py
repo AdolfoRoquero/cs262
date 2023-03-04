@@ -15,8 +15,6 @@ class TestClient(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        print("\n\nSetUpClass")
-
         # Setup fake usernames
         with grpc.insecure_channel(f'{cls.host}:{cls.port}') as channel:
             for username in cls.fake_users: 
@@ -107,7 +105,6 @@ class TestClient(unittest.TestCase):
             username_filter = chat_app_pb2.ListAllRequest(username_filter = '*user')
             reply = stub.ListAll(username_filter) 
             for user in reply.users: 
-                print(user.username)
                 self.assertRegex(user.username, '.*_user')
             self.assertEqual(len(reply.users), 3)
 
