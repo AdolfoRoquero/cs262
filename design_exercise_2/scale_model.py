@@ -53,15 +53,16 @@ def consumer(client_socket):
 
  
 
-def producer(config, out_port):
+def producer(config, port_idx):
     sender_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
+    out_port = config.out_ports[port_idx]
     try:
         sender_socket.connect((config.host, out_port))
         print("Client-side connection success to port val:" + str(out_port) + "\n")
 
         while True:
             lock.acquire()
+            clock_read_flag[port_idx] = True
             if out_port in code:
                 # send to one of the other machines a message that is the 
                 # local logical clock time, update it’s own logical clock, 
@@ -117,6 +118,9 @@ def machine(config):
     global clock
     clock = 0
 
+    global clock_read_flag
+    clock_read_flag = [False for _ in config.out_ports]
+
 
     init_thread = Thread(target=init_machine, args=(config,))
     init_thread.start()
@@ -124,9 +128,9 @@ def machine(config):
     time.sleep(5)
 
     thread_list = []
-    for out_port in config.out_ports:
+    for port_idx in range(len(config.out_ports)):
         # extensible to multiple producers
-        prod_thread = Thread(target=producer, args=(config, out_port))
+        prod_thread = Thread(target=producer, args=(config, port_idx))
         thread_list.append(prod_thread)
     for thread in thread_list:
         thread.start()
@@ -134,9 +138,14 @@ def machine(config):
     while True:
         time.sleep(clock_rate)
 
+        while sum(clock_read_flag) != len(clock_read_flag):
+            pass
+
         lock.acquire()
+
         logical_clock += 1
         clock += 1
+        clock_read_flag = [False for _ in config.out_ports]
 
         # If there is a message in the queue
         if msg_queue:
