@@ -140,8 +140,8 @@ def machine(config):
     while True:
         time.sleep(clock_rate)
 
-        # while sum(clock_read_flag) != len(clock_read_flag):
-        #     continue
+        while sum(clock_read_flag) != len(clock_read_flag):
+            continue
 
         lock.acquire()
 
@@ -154,6 +154,7 @@ def machine(config):
             msg = msg_queue.pop(0)
             logger.info(f"event: RECEIVE MESSAGE, sys_clock: {clock}, logical_clock: {logical_clock}, code: {-1}, queue_length: {len(msg_queue)}, msg: {msg}")
             logical_clock = max(logical_clock, int(msg))
+            code = []
         else: 
             assert len(msg_queue) == 0 
             action = random.randint(0,9)
