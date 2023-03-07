@@ -63,16 +63,15 @@ def producer(config, port_idx):
         while True:
             lock.acquire()
             clock_read_flag[port_idx] = True
-            if out_port in code:
+            if out_port in code[0]:
                 # send to one of the other machines a message that is the 
                 # local logical clock time, update it’s own logical clock, 
                 # and update the log with the send, the system time, 
                 # and the logical clock time
                 
                 sender_socket.send(str(logical_clock).encode('ascii'))
-                system_time = datetime.now().strftime("%d/%m/%Y, %H:%M:%S")
                 # Update log with the send info
-                logger.info(f"SENT from {config.host} to {out_port} at {system_time}, sys_clock: {clock}, logical_clock: {logical_clock}, code: {code}")
+                logger.info(f"event: SENT to {out_port}, sys_clock: {clock}, logical_clock: {logical_clock}, code: {code[1]}, queue_length: {len(msg_queue)}")
             lock.release()
             time.sleep(clock_rate)
             
@@ -97,7 +96,7 @@ def init_machine(config):
 def machine(config):
     config.add_pid(os.getpid())
     global code
-    code = []
+    code = ([], 0)
     
     global clock_rate
     clock_rate = config.clock_rate
@@ -150,8 +149,7 @@ def machine(config):
         # If there is a message in the queue
         if msg_queue:
             msg = msg_queue.pop(0)
-            system_time = datetime.now().strftime("%d/%m/%Y, %H:%M:%S")
-            logger.info(f"RECEIVE MESSAGE at {system_time}, sys_clock: {clock}, logical_clock: {logical_clock}, msg: {msg}, queue_length: {len(msg_queue)}")
+            logger.info(f"event: RECEIVE MESSAGE, sys_clock: {clock}, logical_clock: {logical_clock}, code: {-1}, queue_length: {len(msg_queue)}, msg: {msg}")
             logical_clock = max(logical_clock, int(msg))
         else: 
             rand_action = random.randint(0,9)
@@ -162,16 +160,15 @@ def machine(config):
                     - and update the log with the send, 
                     - the system time, and 
                     - the logical clock time"""
-                code = [config.out_ports[rand_action]]
+                code = [config.out_ports[rand_action]], rand_action
             elif rand_action == len(config.out_ports):
-                code = config.out_ports
+                code = config.out_ports, rand_action
             else:
                 """Treat the cycle as an internal event: 
                 - update the local logical clock, 
                 - log the internal event, the system time, and the logical clock value."""
-                code = []
-                system_time = datetime.now().strftime("%d/%m/%Y, %H:%M:%S")
-                logger.info(f"INTERNAL EVENT at {system_time}, sys_clock: {clock}, logical_clock: {logical_clock}")
+                code = [], rand_action
+                logger.info(f"event: INTERNAL EVENT, sys_clock: {clock}, logical_clock: {logical_clock}, code: {code[1]}, queue_length: {len(msg_queue)}")
         
         lock.release()
    
@@ -187,20 +184,20 @@ if __name__ == '__main__':
     # random.seed(262)
 
     clock_rate = 1 / random.randint(1, 6)
-    clock_rate = 1
+    clock_rate = 1/6
     print('P1 clock rate: ', clock_rate)
     config1 = Config('P1', localHost, port1, [port2, port3], clock_rate)
     p1 = Process(target=machine, args=(config1,))
 
     clock_rate = 1 / random.randint(1, 6)
-    clock_rate = 1/3
+    clock_rate = 1
 
     print('P2 clock rate: ', clock_rate)
     config2 = Config('P2', localHost, port2, [port1, port3], clock_rate)
     p2 = Process(target=machine, args=(config2,))
     
     clock_rate = 1 / random.randint(1, 6)
-    clock_rate = 1/6
+    clock_rate = 1
     print('P3 clock rate: ', clock_rate)
     config3 = Config('P3', localHost, port3, [port1, port2], clock_rate)
     p3 = Process(target=machine, args=(config3,))
