@@ -72,7 +72,7 @@ def producer(config, port_idx):
                 sender_socket.send(str(logical_clock).encode('ascii'))
                 system_time = datetime.now().strftime("%d/%m/%Y, %H:%M:%S")
                 # Update log with the send info
-                logger.info(f"SENT from {config.host} to {out_port} at {system_time}, sys_clock:{clock} logical_clock: {logical_clock}, code: {code}")
+                logger.info(f"SENT from {config.host} to {out_port} at {system_time}, sys_clock: {clock}, logical_clock: {logical_clock}, code: {code}")
             lock.release()
             time.sleep(clock_rate)
             
