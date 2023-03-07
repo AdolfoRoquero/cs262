@@ -1,3 +1,4 @@
+from email import message
 from multiprocessing import Process
 import os
 import socket
@@ -41,7 +42,6 @@ class Config:
 
 def consumer(client_socket):
     print("consumer accepted connection" + str(client_socket)+"\n")
-    sleepVal = clock_rate
     while True:
         data = client_socket.recv(1024)
         dataVal = data.decode('ascii')
@@ -63,7 +63,7 @@ def producer(config, port_idx):
         while True:
             lock.acquire()
             clock_read_flag[port_idx] = True
-            if out_port in code[0]:
+            if out_port in code:
                 # send to one of the other machines a message that is the 
                 # local logical clock time, update it’s own logical clock, 
                 # and update the log with the send, the system time, 
@@ -71,7 +71,7 @@ def producer(config, port_idx):
                 
                 sender_socket.send(str(logical_clock).encode('ascii'))
                 # Update log with the send info
-                logger.info(f"event: SENT to {out_port}, sys_clock: {clock}, logical_clock: {logical_clock}, code: {code[1]}, queue_length: {len(msg_queue)}")
+                logger.info(f"event: SENT to {out_port}, sys_clock: {clock}, logical_clock: {logical_clock}, code: {action}, queue_length: {len(msg_queue)}")
             lock.release()
             time.sleep(clock_rate)
             
@@ -96,7 +96,10 @@ def init_machine(config):
 def machine(config):
     config.add_pid(os.getpid())
     global code
-    code = ([], 0)
+    code = []
+
+    global action 
+    action = -1 
     
     global clock_rate
     clock_rate = config.clock_rate
@@ -127,7 +130,7 @@ def machine(config):
     time.sleep(5)
 
     thread_list = []
-    for port_idx in range(len(config.out_ports)):
+    for port_idx, _ in enumerate(config.out_ports):
         # extensible to multiple producers
         prod_thread = Thread(target=producer, args=(config, port_idx))
         thread_list.append(prod_thread)
@@ -137,8 +140,8 @@ def machine(config):
     while True:
         time.sleep(clock_rate)
 
-        while sum(clock_read_flag) != len(clock_read_flag):
-            pass
+        # while sum(clock_read_flag) != len(clock_read_flag):
+        #     continue
 
         lock.acquire()
 
@@ -152,23 +155,24 @@ def machine(config):
             logger.info(f"event: RECEIVE MESSAGE, sys_clock: {clock}, logical_clock: {logical_clock}, code: {-1}, queue_length: {len(msg_queue)}, msg: {msg}")
             logical_clock = max(logical_clock, int(msg))
         else: 
-            rand_action = random.randint(0,9)
-            if rand_action in list(range(len(config.out_ports))):
+            assert len(msg_queue) == 0 
+            action = random.randint(0,9)
+            if action in list(range(len(config.out_ports))):
                 """ Send to ONE of the other machines a message that is:
                     - the local logical clock time, 
                     - update it's own logical clock, 
                     - and update the log with the send, 
                     - the system time, and 
                     - the logical clock time"""
-                code = [config.out_ports[rand_action]], rand_action
-            elif rand_action == len(config.out_ports):
-                code = config.out_ports, rand_action
+                code = [config.out_ports[action]]
+            elif action == len(config.out_ports):
+                code = config.out_ports
             else:
                 """Treat the cycle as an internal event: 
                 - update the local logical clock, 
                 - log the internal event, the system time, and the logical clock value."""
-                code = [], rand_action
-                logger.info(f"event: INTERNAL EVENT, sys_clock: {clock}, logical_clock: {logical_clock}, code: {code[1]}, queue_length: {len(msg_queue)}")
+                code = []
+                logger.info(f"event: INTERNAL EVENT, sys_clock: {clock}, logical_clock: {logical_clock}, code: {action}, queue_length: {len(msg_queue)}")
         
         lock.release()
    
@@ -184,20 +188,20 @@ if __name__ == '__main__':
     # random.seed(262)
 
     clock_rate = 1 / random.randint(1, 6)
-    clock_rate = 1/6
+    clock_rate = 1
     print('P1 clock rate: ', clock_rate)
     config1 = Config('P1', localHost, port1, [port2, port3], clock_rate)
     p1 = Process(target=machine, args=(config1,))
 
     clock_rate = 1 / random.randint(1, 6)
-    clock_rate = 1
+    clock_rate = 1/3
 
     print('P2 clock rate: ', clock_rate)
     config2 = Config('P2', localHost, port2, [port1, port3], clock_rate)
     p2 = Process(target=machine, args=(config2,))
     
     clock_rate = 1 / random.randint(1, 6)
-    clock_rate = 1
+    clock_rate = 1/2
     print('P3 clock rate: ', clock_rate)
     config3 = Config('P3', localHost, port3, [port1, port2], clock_rate)
     p3 = Process(target=machine, args=(config3,))
@@ -206,6 +210,12 @@ if __name__ == '__main__':
     p2.start()
     p3.start()
     
-    p1.join()
-    p2.join()
-    p3.join()
+    # p1.join()
+    # p2.join()
+    # p3.join()
+
+    time.sleep(100)
+
+    p1.kill()
+    p2.kill()
+    p3.kill()
