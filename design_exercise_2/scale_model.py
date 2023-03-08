@@ -143,8 +143,8 @@ def machine(config, log_folder):
     while True:
         time.sleep(clock_rate)
 
-        # while sum(clock_read_flag) != len(clock_read_flag):
-        #     continue
+        while sum(clock_read_flag) != len(clock_read_flag):
+            continue
 
         lock.acquire()
 
