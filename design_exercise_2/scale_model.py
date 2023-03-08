@@ -10,12 +10,12 @@ import random
 import logging
 from datetime import datetime 
 
+
+
 def delete_log_files(dir=os.getcwd()):
     for path in os.listdir(dir):
         if path.endswith('.log'):
             os.remove(path)	
-
-
 
 
 def setup_logger(name, log_file, level=logging.INFO):
@@ -30,6 +30,25 @@ def setup_logger(name, log_file, level=logging.INFO):
     return logger
 
 class Config: 
+    """
+    Configuration class for a process.
+
+    Attributes:
+    -----------
+    name: str
+        Name of the process E.g P1, P2, etc
+    host: str
+        Ip address of the process to use when creating sockets.
+    port: int
+        Port that process uses to accept listen on for accepting new connections.
+    out_ports: list of ports
+        List of ports to which the current process will send.
+    clock_rate: float
+        Clock rate of the process
+    rand_upper_bound: int
+        Upper bound on the range of random numbers 
+        from which we pick what event the process will run.
+    """
     def __init__(self, name, host, listening_port, 
                  sending_ports = [], clock_rate = 1, rand_upper_bound = 9):
        self.name = name
@@ -44,6 +63,18 @@ class Config:
     
 
 def consumer(client_socket):
+    """
+    Consumer thread function.
+    This function is run by receiving thread and continually 
+    appends new messages to the global state queue.
+    Thread runs at REAL system clock rate
+
+    Parameters
+    ----------
+    client_socket: socket.Socket
+        Socket on which thread will be listening to.
+    
+    """
     print("consumer accepted connection" + str(client_socket)+"\n")
     while True:
         data = client_socket.recv(1024)
@@ -57,6 +88,20 @@ def consumer(client_socket):
  
 
 def producer(config, port_idx):
+    """
+    Producer thread function.
+    This function is run by the sending thread and continually,
+    checks for operation code (set by MAIN thread) to determine whether 
+    it needs to send a message or not.
+
+    Parameters:
+    config: Config instance
+        Configuration details of the processor
+    port_idx: int
+        Index in the list of out_ports of the configuration that this sender thread 
+        will always send to.
+    
+    """
     sender_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     out_port = config.out_ports[port_idx]
     try:
@@ -83,6 +128,15 @@ def producer(config, port_idx):
  
 
 def init_machine(config):
+    """
+    Thread function to accept new connections and create sockets for them.
+
+    Parameters
+    ----------
+    config: Config instance
+        Configuration details of the processor
+
+    """
     print("starting server| port val:", int(config.port))
     try: 
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -97,6 +151,31 @@ def init_machine(config):
         print("Error accepting client sockets: %s" % e)
 
 def machine(config, log_folder):
+    """
+    MAIN thread function that simulates the a machine running
+    at a clock rate.
+
+    Parameters
+    ----------
+    config: Config instance
+        Configuration details of the processor.
+    log_folder: str
+        Name of the folder where logs files are to be stored.
+
+    Globals
+    -------
+
+    code: list of ints
+    action: int
+    clock_rate: float
+    msg_queue: list of ints
+    logger
+    logical_clock
+    clock
+    clock_read_flag
+
+    """
+
     config.add_pid(os.getpid())
     global code
     code = []
@@ -129,7 +208,7 @@ def machine(config, log_folder):
 
     init_thread = Thread(target=init_machine, args=(config,))
     init_thread.start()
-    #add delay to initialize the server-side logic on all processes
+    # Add delay to initialize the server-side logic on all processes
     time.sleep(5)
 
     thread_list = []
@@ -143,9 +222,9 @@ def machine(config, log_folder):
     while True:
         time.sleep(clock_rate)
 
+        # Handle Read-after-write error
         while sum(clock_read_flag) != len(clock_read_flag):
             continue
-
         lock.acquire()
 
         logical_clock += 1
