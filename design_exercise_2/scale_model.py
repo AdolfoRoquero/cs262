@@ -218,7 +218,7 @@ def run_experiment(random_ = True, clock_rates = [1, 1, 1], rand_upper = 9):
 
 if __name__ == '__main__':
     delete_log_files(os.getcwd())
-    rates = [[1,1,1], [1/6, 1/2, 1/2]]
+    rates = [[1/6, 1/4, 1/2]]
     for rate_exp in rates: 
         for rand_upper in [3, 5, 7]: 
             run_experiment(random_=False, clock_rates = rate_exp, rand_upper=rand_upper)
