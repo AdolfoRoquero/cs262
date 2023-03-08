@@ -227,6 +227,11 @@ def machine(config, log_folder):
             continue
         lock.acquire()
 
+        # UNIT TEST: Assert that all sender threads have sent the message before 
+        # simulated clock in MAIN thread is increased.
+        for flag in clock_read_flag:
+            assert flag == True 
+
         logical_clock += 1
         clock += 1
         clock_read_flag = [False for _ in config.out_ports]
@@ -238,6 +243,7 @@ def machine(config, log_folder):
             logical_clock = max(logical_clock, int(msg))
             code = [] 
         else: 
+            # UNIT TEST: Assert Invariant that sending only happens when queue is empty
             assert len(msg_queue) == 0 
             action = random.randint(0,config.rand_upper_bound)
             if action in list(range(len(config.out_ports))):
@@ -256,7 +262,9 @@ def machine(config, log_folder):
                 - log the internal event, the system time, and the logical clock value."""
                 code = []
                 logger.info(f"event: INTERNAL EVENT, sys_clock: {clock}, logical_clock: {logical_clock}, code: {action}, queue_length: {len(msg_queue)}")
-        
+            
+            # UNIT TEST: Assert invariant that action is within the defined options
+            assert action in list(range(-1, config.rand_upper_bound+1))
         lock.release()
    
 
@@ -297,12 +305,13 @@ def run_experiment(random_ = True, clock_rates = [1, 1, 1], rand_upper = 9):
 
 if __name__ == '__main__':
     delete_log_files(os.getcwd())
-    rates = [[1, 1, 1], [1/6, 1/6, 1], [1, 1, 1/6], [1/6, 1/4, 1/2], [1/3, 1/2, 1/4], [1/10, 1, 1], [1/10, 1/10, 1]]
-    for rate_exp in rates: 
-        run_experiment(random_=False, clock_rates = rate_exp)
+    run_experiment(random_=False, clock_rates = [1/6, 1/6, 1])
+    # rates = [[1, 1, 1], [1/6, 1/6, 1], [1, 1, 1/6], [1/6, 1/4, 1/2], [1/3, 1/2, 1/4], [1/10, 1, 1], [1/10, 1/10, 1]]
+    # for rate_exp in rates: 
+    #     run_experiment(random_=False, clock_rates = rate_exp)
 
-    for rate_exp in rates[:4]:
-        for rand_upper in [3, 5, 7]: 
-            run_experiment(random_=False, clock_rates = rate_exp, rand_upper=rand_upper)
+    # for rate_exp in rates[:4]:
+    #     for rand_upper in [3, 5, 7]: 
+    #         run_experiment(random_=False, clock_rates = rate_exp, rand_upper=rand_upper)
 
     
