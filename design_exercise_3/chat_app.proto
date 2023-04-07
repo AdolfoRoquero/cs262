@@ -47,6 +47,17 @@ service ChatApp {
   // Request to receive ALL pending messages for a given user. 
   rpc ReceiveMessage(User) returns (stream ChatMessage);
 
+  //  
+  rpc NewUser_StateUpdate(User) returns (RequestReply); 
+
+  rpc DeleteUser_StateUpdate(User) returns (RequestReply); 
+
+  // Request enqueue a message.
+  rpc EnqueueMessage_StateUpdate(ChatMessage) returns (RequestReply); 
+  
+  // Request to dequeue a message.
+  rpc DequeueMessage_StateUpdate(ChatMessage) returns (RequestReply);
+
 }
 
 // message RequestReply
