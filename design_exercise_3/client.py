@@ -5,8 +5,8 @@ import grpc
 import os 
 
 def run():
-    HOST = os.environ['CHAT_APP_SERVER_HOST']
-    PORT = os.environ['CHAT_APP_SERVER_PORT']
+    HOST = os.environ['REP_SERVER_HOST_1']
+    PORT = os.environ['REP_SERVER_PORT_1']
     channel_ = HOST + ':' + PORT
     with grpc.insecure_channel(channel_) as channel:
         stub = chat_app_pb2_grpc.ChatAppStub(channel)

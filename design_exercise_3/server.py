@@ -6,6 +6,7 @@ This file can be imported as a module and can ALSO be run to spawn a running ser
 """
 
 from concurrent import futures
+from multiprocessing import Process
 import grpc
 import chat_app_pb2
 import chat_app_pb2_grpc
@@ -13,7 +14,7 @@ from collections import defaultdict
 import fnmatch 
 import os
 import pickledb
-import pickle
+import time
 
 class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
     """Interface exported by the server."""
@@ -46,6 +47,16 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         self.port = rep_servers_config[server_id]['port']
         self.rep_servers_config = rep_servers_config
         self._initialize_storage()
+        self._initialize_replica_stubs()
+    
+    def _initialize_replica_stubs(self):
+        for rep_server in self.rep_servers_config:
+            if rep_server != self.server_id:
+                channel = grpc.insecure_channel(f"{self.rep_servers_config[rep_server]['host']}:{self.rep_servers_config[rep_server]['port']}")
+                self.rep_servers_config[rep_server]['stub'] = chat_app_pb2_grpc.ChatAppStub(channel)
+
+
+
 
     def _initialize_storage(self, dir=os.getcwd()):
         print(f"Server {self.server_id}: Initializing storage")
@@ -75,28 +86,24 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         self.db = pickledb.load(db_filename, True)
 
         # Add ROOT user to database
-        self.db.set('root', [
-                {"dest": "javi", 
-                 "content":"hello javi"},
-                {"dest": "javi", 
-                 "content":"hello javi twice"}
-            ])
+        self.db.set('root', [])
 
-        print(self._get_registered_users())
-        print(self._get_pending_messages())
-        self.db.ladd('root', {"dest": "javi", 
-                 "content":"hello javi third"})
-        print(self._get_pending_messages())
+        # print(self._get_registered_users())
+        # print(self._get_pending_messages())
+        # self.db.ladd('root', {"dest": "javi", 
+        #          "content":"hello javi third"})
+        # print(self._get_pending_messages())
 
 
-    def _get_pending_messages(self, ):
+    def _get_pending_messages(self, username):
         """extracts list of pending messages from db"""
         # TODO: 
-        return self.db.get('root')
+        return self.db.get(username)
 
     def _get_registered_users(self):
         """extracts list of pending messages from db"""
         return self.db.getall()
+
 
     def Login(self, request, context):
         """
@@ -112,8 +119,10 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         RequestReply :
             Indicates Success or Failure of the login attempt.
         """
+        print(f"Server {self.server_id}: Login")
+
         if self.is_primary:
-            if request in self.registered_users.users: 
+            if request.username in self._get_registered_users(): 
                 print(f'user login success {request.username}')
                 return chat_app_pb2.RequestReply(reply = 'Success', request_status = 1)
             else: 
@@ -138,9 +147,18 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         RequestReply :
             Indicates Success or Failure of the signup attempt.
         """
+        print(f"Server {self.server_id}: SignUp")
         if self.is_primary:
-            if request not in self.registered_users.users: 
-                self.registered_users.users.append(request)
+            if request.username not in self._get_registered_users(): 
+                
+                # TODO add persistence
+                # for rep_server in self.rep_servers_config:
+                #     reply = self.rep_servers_config[rep_server]['stub'].NewUser_StateUpdate(request)
+
+                # Add new user to database
+                self.db.set(request.username, [])
+
+                #self.registered_users.users.append(request)
                 print(f'user signup success {request.username}')
                 return chat_app_pb2.RequestReply(reply = 'Success', request_status = 1)
             else: 
@@ -164,16 +182,18 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         UserList :
             List of all users that match the filter.
         """
+        print(f"Server {self.server_id}: ListAll")
+
         if self.is_primary:
-            filtered_users = chat_app_pb2.UserList()
             if request.username_filter:
-                filtered_users.users.extend([user for user in self.registered_users.users 
-                                        if fnmatch.fnmatch(user.username, request.username_filter) 
-                                        and (user.username != 'root')])
+                filtered_users = [chat_app_pb2.User(username = user) for user in self._get_registered_users() 
+                                        if fnmatch.fnmatch(user, request.username_filter) 
+                                        and (user != 'root')]
             else:
-                filtered_users.users.extend([user for user in self.registered_users.users if (user.username != 'root')])
-                
-            return filtered_users
+                filtered_users = [chat_app_pb2.User(username = user) for user in self._get_registered_users() if (user != 'root')]
+            return_list = chat_app_pb2.UserList()
+            return_list.users.extend(filtered_users)
+            return return_list
         
         else: 
             # TODO Reroute request to primary
@@ -193,17 +213,17 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         RequestReply :
             Indicates Success or Failure of the deletion.
         """
-        if self.is_primary:
+        print(f"Server {self.server_id}: DeleteUser")
 
-            updated_registered_users = chat_app_pb2.UserList()
-            for user in self.registered_users.users:
-                if user.username != request.username: 
-                    updated_registered_users.users.append(user)
-            if len(self.registered_users.users) - 1 == len(updated_registered_users.users): 
-                self.registered_users = updated_registered_users
-                return chat_app_pb2.RequestReply(request_status = 1)
+        if self.is_primary:
+            if request.username in self._get_registered_users():
+                
+                # TODO: handle persistence
+                self.db.rem(request.username)
+                return chat_app_pb2.RequestReply(request_status = 0) 
             else: 
-                return chat_app_pb2.RequestReply(request_status = 0)
+                # Error trying to delete a user that doesn't exist
+                return chat_app_pb2.RequestReply(request_status = 1)
         else: 
             # TODO Reroute request to primary
             pass
@@ -222,12 +242,14 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         RequestReply :
             Indicates Success or Failure.
         """
+        print(f"Server {self.server_id}: SendMessage")
+
         if self.is_primary:
             destinataries = request.destinataries.users
             request.ClearField('destinataries')
             for destinatary in destinataries:
-                if destinatary in self.registered_users.users: 
-                    self.pending_messages[destinatary.username].append(request)
+                if destinatary.username in self._get_registered_users():
+                    self.db.ladd(destinatary.username, request)
             return chat_app_pb2.RequestReply(request_status = 1)
         
         else:
@@ -249,11 +271,14 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         ChatMessage stream:
             Stream of all of the pending messages for the given user.
         """
+        print(f"Server {self.server_id}: ReceiveMessage")
         if self.is_primary:
-            for message in self.pending_messages[request.username]: 
+
+            for message in self._get_pending_messages(request.username): 
                 yield message
             
-            del self.pending_messages[request.username] 
+            # TODO: handle replication
+            self.db.set(request.username, [])
         
         else: 
             # TODO Reroute request to primary
@@ -263,6 +288,8 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         """
 
         """
+        print(f"Server {self.server_id}: NewUser_StateUpdate")
+
         if self.is_primary:
             # TODO Error: This should not happen
             raise NotImplementedError('Method not implemented!')
@@ -304,6 +331,21 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             raise NotImplementedError('Method not implemented!')
 
 
+def server(server_id, primary_server_id, config):
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+
+    chat_app_pb2_grpc.add_ChatAppServicer_to_server(
+        ChatAppServicer(server_id, primary_server_id, config), server)
+    
+    host = config[server_id]['host']
+    port = config[server_id]['port']
+    server.add_insecure_port(f'{host}:{port}')
+    server.start()
+    server.wait_for_termination()
+
+
+
+
 if __name__ == '__main__':
     config = {
         "rep_server1" : {
@@ -327,18 +369,20 @@ if __name__ == '__main__':
     }
     primary_server_id = 'rep_server1'
 
-    for server_id in config:
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    processes = []
+    for rep_server in config:
+        p = Process(target=server, args=(rep_server, primary_server_id, config))
+        processes.append(p)
+    
+    for process in processes:
+        process.start()
+    
+    time.sleep(40)
 
-        chat_app_pb2_grpc.add_ChatAppServicer_to_server(
-            ChatAppServicer(server_id, primary_server_id, config), server)
-        
-        host = config[server_id]['host']
-        port = config[server_id]['port']
-        server.add_insecure_port(f'{host}:{port}')
-        server.start()
-        # TODO: Threading for each server
-        server.wait_for_termination()
+    for process in processes:
+        process.kill()
+
+
 
 
 
