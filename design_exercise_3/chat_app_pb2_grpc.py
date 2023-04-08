@@ -62,7 +62,7 @@ class ChatAppStub(object):
                 )
         self.DequeueMessage_StateUpdate = channel.unary_unary(
                 '/chatapp.ChatApp/DequeueMessage_StateUpdate',
-                request_serializer=chat__app__pb2.ChatMessage.SerializeToString,
+                request_serializer=chat__app__pb2.User.SerializeToString,
                 response_deserializer=chat__app__pb2.RequestReply.FromString,
                 )
 
@@ -117,27 +117,28 @@ class ChatAppServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def NewUser_StateUpdate(self, request, context):
-        """
+        """Request to update replica state when a new user signs up.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteUser_StateUpdate(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """Request to update replica state when a user is deleted.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def EnqueueMessage_StateUpdate(self, request, context):
-        """Request enqueue a message.
+        """Request to update replica state when a message is sent (message enqueuing).
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DequeueMessage_StateUpdate(self, request, context):
-        """Request to dequeue a message.
+        """Request to update replica state when a message is received (message dequeuing).
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -193,7 +194,7 @@ def add_ChatAppServicer_to_server(servicer, server):
             ),
             'DequeueMessage_StateUpdate': grpc.unary_unary_rpc_method_handler(
                     servicer.DequeueMessage_StateUpdate,
-                    request_deserializer=chat__app__pb2.ChatMessage.FromString,
+                    request_deserializer=chat__app__pb2.User.FromString,
                     response_serializer=chat__app__pb2.RequestReply.SerializeToString,
             ),
     }
@@ -372,7 +373,7 @@ class ChatApp(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/DequeueMessage_StateUpdate',
-            chat__app__pb2.ChatMessage.SerializeToString,
+            chat__app__pb2.User.SerializeToString,
             chat__app__pb2.RequestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

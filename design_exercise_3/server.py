@@ -15,6 +15,34 @@ import fnmatch
 import os
 import pickledb
 import time
+from google.protobuf.timestamp_pb2 import Timestamp
+from datetime import datetime
+
+
+def dict_to_ChatMessage(message_dict):
+    """Function converting from the dictionary 
+       format of a message (Used in our key value store)
+       to a ChatMessage object 
+       
+       Messages are stored as:
+       {"sender": str, 
+        "text": str,
+        "destinataries": list of str
+        "date": request.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")}
+       """
+    msg_datetime = Timestamp()
+    msg_datetime.FromDatetime(datetime.strptime(message_dict['date'], "%d/%m/%Y, %H:%M"))
+
+    destinataries = chat_app_pb2.UserList(users=[chat_app_pb2.User(username=username) 
+                                                 for username in message_dict['destinataries']])
+    chat_message = chat_app_pb2.ChatMessage(sender=chat_app_pb2.User(username=message_dict['sender']),
+                                            destinataries=destinataries,
+                                            text=message_dict['text'],
+                                            date=msg_datetime)
+    return chat_message
+
+    
+
 
 class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
     """Interface exported by the server."""
@@ -50,10 +78,11 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         self._initialize_replica_stubs()
     
     def _initialize_replica_stubs(self):
+        self.replica_stubs = {}
         for rep_server in self.rep_servers_config:
             if rep_server != self.server_id:
                 channel = grpc.insecure_channel(f"{self.rep_servers_config[rep_server]['host']}:{self.rep_servers_config[rep_server]['port']}")
-                self.rep_servers_config[rep_server]['stub'] = chat_app_pb2_grpc.ChatAppStub(channel)
+                self.replica_stubs[rep_server] = chat_app_pb2_grpc.ChatAppStub(channel)
 
 
 
@@ -152,8 +181,9 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             if request.username not in self._get_registered_users(): 
                 
                 # TODO add persistence
-                # for rep_server in self.rep_servers_config:
-                #     reply = self.rep_servers_config[rep_server]['stub'].NewUser_StateUpdate(request)
+                for rep_server in self.replica_stubs:
+                    print(f"\tSending replication to server {rep_server}")
+                    reply = self.replica_stubs[rep_server].NewUser_StateUpdate(request)
 
                 # Add new user to database
                 self.db.set(request.username, [])
@@ -218,12 +248,17 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         if self.is_primary:
             if request.username in self._get_registered_users():
                 
-                # TODO: handle persistence
+                for rep_server in self.replica_stubs:
+                    print(f"\tSending replication to server {rep_server}")
+                    reply = self.replica_stubs[rep_server].DeleteUser_StateUpdate(request)
+
+                # Remove user from database
                 self.db.rem(request.username)
-                return chat_app_pb2.RequestReply(request_status = 0) 
+
+                return chat_app_pb2.RequestReply(request_status = 1) 
             else: 
                 # Error trying to delete a user that doesn't exist
-                return chat_app_pb2.RequestReply(request_status = 1)
+                return chat_app_pb2.RequestReply(request_status = 0)
         else: 
             # TODO Reroute request to primary
             pass
@@ -245,11 +280,21 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         print(f"Server {self.server_id}: SendMessage")
 
         if self.is_primary:
+
+            # Send update to enqueue a message to replicas
+            for rep_server in self.replica_stubs:
+                print(f"\tSending replication to server {rep_server}")
+                reply = self.replica_stubs[rep_server].EnqueueMessage_StateUpdate(request)
+                
             destinataries = request.destinataries.users
-            request.ClearField('destinataries')
             for destinatary in destinataries:
                 if destinatary.username in self._get_registered_users():
-                    self.db.ladd(destinatary.username, request)
+
+                    # Add message to database
+                    self.db.ladd(destinatary.username, {"sender": request.sender.username,
+                                                        "destinataries": [user.username for user in destinataries],
+                                                        "text": request.text,
+                                                        "date": request.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")})
             return chat_app_pb2.RequestReply(request_status = 1)
         
         else:
@@ -275,9 +320,14 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         if self.is_primary:
 
             for message in self._get_pending_messages(request.username): 
-                yield message
+                yield dict_to_ChatMessage(message)
+                print("Hello")
             
             # TODO: handle replication
+            for rep_server in self.replica_stubs:
+                print(f"\tSending replication to server {rep_server}")
+                reply = self.replica_stubs[rep_server].DequeueMessage_StateUpdate(request)
+                
             self.db.set(request.username, [])
         
         else: 
@@ -295,40 +345,60 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             raise NotImplementedError('Method not implemented!')
         else :
             # TODO add info to log and respond
-            raise NotImplementedError('Method not implemented!')
+            self.db.set(request.username, [])
+
+            return chat_app_pb2.RequestReply(request_status = 1)
 
         
 
     def DeleteUser_StateUpdate(self, request, context):
         """Missing associated documentation comment in .proto file."""
+        print(f"Server {self.server_id}: DeleteUser_StateUpdate")
+
         if self.is_primary:
             # TODO Error: This should not happen
             raise NotImplementedError('Method not implemented!')
         else :
-            # TODO add info to log and respond
-            raise NotImplementedError('Method not implemented!')
+            self.db.rem(request.username)
+            
+            return chat_app_pb2.RequestReply(request_status = 1)
 
 
     def EnqueueMessage_StateUpdate(self, request, context):
         """Request enqueue a message.
         """
+        print(f"Server {self.server_id}: EnqueueMessage_StateUpdate")
+
         if self.is_primary:
             # TODO Error: This should not happen
             raise NotImplementedError('Method not implemented!')
         else :
-            # TODO add info to log and respond
-            raise NotImplementedError('Method not implemented!')
+            destinataries = request.destinataries.users
+            request.ClearField('destinataries')
+            for destinatary in destinataries:
+                if destinatary.username in self._get_registered_users():
+                    # Add message to database
+                    self.db.ladd(destinatary.username, {"sender": request.sender.username,
+                                                        "destinataries": [user.username for user in destinataries],
+                                                        "text": request.text,
+                                                        "date": request.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")})
+            return chat_app_pb2.RequestReply(request_status = 1)
 
 
     def DequeueMessage_StateUpdate(self, request, context):
         """Request to dequeue a message.
         """
+        print(f"Server {self.server_id}: DequeueMessage_StateUpdate")
+
         if self.is_primary:
             # TODO Error: This should not happen
             raise NotImplementedError('Method not implemented!')
         else :
+
             # TODO add info to log and respond
-            raise NotImplementedError('Method not implemented!')
+            self.db.set(request.username, [])
+            return chat_app_pb2.RequestReply(request_status = 1)
+
 
 
 def server(server_id, primary_server_id, config):
@@ -364,7 +434,7 @@ if __name__ == '__main__':
             "host": os.environ["REP_SERVER_HOST_3"],
             "port": os.environ["REP_SERVER_PORT_3"],
             "pend_log_file": os.environ["REP_SERVER_PEND_3"],
-            "db_file": os.environ["REP_SERVER_DB_FILE_2"],
+            "db_file": os.environ["REP_SERVER_DB_FILE_3"],
         }
     }
     primary_server_id = 'rep_server1'
@@ -377,7 +447,7 @@ if __name__ == '__main__':
     for process in processes:
         process.start()
     
-    time.sleep(40)
+    time.sleep(80)
 
     for process in processes:
         process.kill()

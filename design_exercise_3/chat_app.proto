@@ -47,16 +47,17 @@ service ChatApp {
   // Request to receive ALL pending messages for a given user. 
   rpc ReceiveMessage(User) returns (stream ChatMessage);
 
-  //  
+  //  Request to update replica state when a new user signs up.
   rpc NewUser_StateUpdate(User) returns (RequestReply); 
-
+  
+  //  Request to update replica state when a user is deleted.
   rpc DeleteUser_StateUpdate(User) returns (RequestReply); 
 
-  // Request enqueue a message.
+  // Request to update replica state when a message is sent (message enqueuing).
   rpc EnqueueMessage_StateUpdate(ChatMessage) returns (RequestReply); 
   
-  // Request to dequeue a message.
-  rpc DequeueMessage_StateUpdate(ChatMessage) returns (RequestReply);
+  // Request to update replica state when a message is received (message dequeuing).
+  rpc DequeueMessage_StateUpdate(User) returns (RequestReply);
 
 }
 
