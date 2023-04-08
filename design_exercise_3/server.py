@@ -17,6 +17,15 @@ import pickledb
 import time
 from google.protobuf.timestamp_pb2 import Timestamp
 from datetime import datetime
+from enum import Enum
+
+class LogActionType(Enum):
+    """Action types to be used in log"""
+    NEW_USER = 0
+    DELETE_USER = 1
+    ENQUEUE_MSG = 2
+    DEQUEUE_MSG = 3
+
 
 
 def dict_to_ChatMessage(message_dict):
@@ -78,14 +87,12 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         self._initialize_replica_stubs()
     
     def _initialize_replica_stubs(self):
+        """ Initialize a stub to communicate with the other server replicas"""
         self.replica_stubs = {}
         for rep_server in self.rep_servers_config:
             if rep_server != self.server_id:
                 channel = grpc.insecure_channel(f"{self.rep_servers_config[rep_server]['host']}:{self.rep_servers_config[rep_server]['port']}")
                 self.replica_stubs[rep_server] = chat_app_pb2_grpc.ChatAppStub(channel)
-
-
-
 
     def _initialize_storage(self, dir=os.getcwd()):
         print(f"Server {self.server_id}: Initializing storage")
@@ -95,21 +102,20 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         if pend_log_filename in os.listdir(dir):
             os.remove(pend_log_filename)
 
-        # Create a new empty log file
-        empty_file = open(pend_log_filename, "x")
-        empty_file.close()
+        # Create pickledb db instance, auto_dump is set to True, 
+        # because we are manually handling the dumps to the database
+        self.pend_log = pickledb.load(pend_log_filename, True)
 
+        self.pend_log.set('last_entry', 0)
+        self.pend_log.set('current_ptr', 0)
+        self.pend_log.set('log', [])
 
         # Delete previous database
         db_filename = self.rep_servers_config[self.server_id]['db_file']
         if db_filename in os.listdir(dir):
             os.remove(db_filename)
 
-        # Create a new empty db file
-        # empty_file = open(db_filename, "x")
-        # empty_file.close()
 
-        
         # Create pickledb db instance, auto_dump is set to True, 
         # because we are manually handling the dumps to the database
         self.db = pickledb.load(db_filename, True)
@@ -132,6 +138,34 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         """extracts list of pending messages from db"""
         return self.db.getall()
 
+    def _execute_log(self):
+        # TODO: Write function that executes the things that are pending in the log
+        # Function that loops through unexecuted lines in the log and adds them
+        current_ptr = self.pend_log.get('current_ptr')
+        last_entry = self.pend_log.get('last_entry')
+        log = self.pend_log.get("log")
+        
+        for entry in log[current_ptr:]:
+            params = entry['params']
+            if entry['action_type'] == LogActionType.NEW_USER:
+                self.db.set(params['username'], [])
+
+            elif entry['action_type'] == LogActionType.DELETE_USER:
+                self.db.rem(params['username'])
+
+
+            elif entry['action_type'] == LogActionType.DEQUEUE_MSG:
+                # TODO
+                pass
+
+            elif entry['action_type'] == LogActionType.ENQUEUE_MSG:
+                # TODO
+                pass
+            else:
+                raise ValueError("Incorrect action type")
+            
+            self.
+            
 
     def Login(self, request, context):
         """
@@ -181,6 +215,10 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         if self.is_primary:
             if request.username not in self._get_registered_users(): 
                 
+                # Add to log
+                self.pend_log.ladd({"action_type": LogActionType.NEW_USER, 
+                                    "params": {"username": request.username}})
+
                 # TODO add persistence
                 for rep_server in self.replica_stubs:
                     print(f"\tSending replication to server {rep_server}")
@@ -192,7 +230,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                 #self.registered_users.users.append(request)
                 print(f'user signup success {request.username}')
                 return chat_app_pb2.RequestReply(reply = 'Success', 
-                                                 request_status = chat_app_pb2.RequestReply.SUCCESS)
+                                                 request_status=chat_app_pb2.RequestReply.SUCCESS)
             else: 
                 print(f'user signup failed {request.username}')
                 return chat_app_pb2.RequestReply(reply='Failure, username taken', 
@@ -253,13 +291,19 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 
         if self.is_primary:
             if request.username in self._get_registered_users():
+
+                # TODO : Add to log
+                self.pend_log.ladd({"action_type": LogActionType.DELETE_USER, 
+                                    "params": {"username": request.username}})
                 
                 for rep_server in self.replica_stubs:
                     print(f"\tSending replication to server {rep_server}")
                     reply = self.replica_stubs[rep_server].DeleteUser_StateUpdate(request)
 
-                # Remove user from database
+                # Remove user from database (TODO: R)
+
                 self.db.rem(request.username)
+
 
                 return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.SUCCESS) 
             else: 
@@ -327,6 +371,10 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         """
         print(f"Server {self.server_id}: ReceiveMessage")
         if self.is_primary:
+
+            # Add to pending log here
+
+
             # TODO: handle replication
             for rep_server in self.replica_stubs:
                 print(f"\tSending replication to server {rep_server}")
@@ -334,6 +382,8 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             
             for message in self._get_pending_messages(request.username): 
                 yield dict_to_ChatMessage(message)
+
+            # Execute actions from log here
             # Empty list of pending messages
             self.db.set(request.username, [])
         else: 
@@ -355,7 +405,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             # TODO add info to log and respond
             self.db.set(request.username, [])
 
-            return chat_app_pb2.RequestReply(request_status = 1)
+            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.SUCCESS)
 
         
 

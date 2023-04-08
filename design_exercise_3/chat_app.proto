@@ -62,7 +62,6 @@ service ChatApp {
 }
 
 
-
 // message RequestReply
 // Standard object for Server message replies indicating the 
 // status of the request

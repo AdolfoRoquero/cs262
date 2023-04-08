@@ -65,12 +65,6 @@ def run():
 
             for reply in replies:
                 print(f'{reply.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")} {reply.sender.username} > {reply.text}')
-
-
-            
-                
-                    
-
        
         
 if __name__ == "__main__":
