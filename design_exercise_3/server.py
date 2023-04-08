@@ -125,8 +125,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 
 
     def _get_pending_messages(self, username):
-        """extracts list of pending messages from db"""
-        # TODO: 
+        """extracts list of pending messages from db for a given user"""
         return self.db.get(username)
 
     def _get_registered_users(self):
@@ -153,14 +152,16 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         if self.is_primary:
             if request.username in self._get_registered_users(): 
                 print(f'user login success {request.username}')
-                return chat_app_pb2.RequestReply(reply = 'Success', request_status = 1)
+                return chat_app_pb2.RequestReply(reply = 'Success', 
+                                                 request_status=chat_app_pb2.RequestReply.SUCCESS)
             else: 
                 print(f'user login failure {request.username}')
                 return chat_app_pb2.RequestReply(reply = 'Failure, username not registered',
-                request_status = 0)
+                                                 request_status=chat_app_pb2.RequestReply.FAILED)
         else: 
-            # TODO Reroute request to primary
-            pass
+            print(f"\t Rerouting Login to {self.primary_server_id}")
+            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.REROUTED,
+                                             rerouted=self.primary_server_id)
 
     def SignUp(self, request, context):
         """
@@ -190,13 +191,16 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 
                 #self.registered_users.users.append(request)
                 print(f'user signup success {request.username}')
-                return chat_app_pb2.RequestReply(reply = 'Success', request_status = 1)
+                return chat_app_pb2.RequestReply(reply = 'Success', 
+                                                 request_status = chat_app_pb2.RequestReply.SUCCESS)
             else: 
                 print(f'user signup failed {request.username}')
-                return chat_app_pb2.RequestReply(reply = 'Failure, username taken', request_status = 0)
+                return chat_app_pb2.RequestReply(reply='Failure, username taken', 
+                                                 request_status=chat_app_pb2.RequestReply.FAILED)
         else: 
-            # TODO Reroute request to primary
-            pass
+            print(f"\t Rerouting SignUp to {self.primary_server_id}")
+            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.REROUTED,
+                                             rerouted=self.primary_server_id)
 
     def ListAll(self, request, context):
         """
@@ -226,8 +230,10 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             return return_list
         
         else: 
-            # TODO Reroute request to primary
-            pass
+            print(f"\t Rerouting ListAll to {self.primary_server_id}")
+            # TODO: Response must be of type ListAll NOT RequestReply
+            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.REROUTED,
+                                             rerouted=self.primary_server_id)
 
     def DeleteUser(self, request, context):
         """
@@ -255,13 +261,14 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                 # Remove user from database
                 self.db.rem(request.username)
 
-                return chat_app_pb2.RequestReply(request_status = 1) 
+                return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.SUCCESS) 
             else: 
                 # Error trying to delete a user that doesn't exist
-                return chat_app_pb2.RequestReply(request_status = 0)
+                return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.FAILED)
         else: 
-            # TODO Reroute request to primary
-            pass
+            print(f"\t Rerouting DeleteUser to {self.primary_server_id}")
+            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.REROUTED,
+                                             rerouted=self.primary_server_id)
 
     def SendMessage(self, request, context):
         """
@@ -295,11 +302,13 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                                                         "destinataries": [user.username for user in destinataries],
                                                         "text": request.text,
                                                         "date": request.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")})
-            return chat_app_pb2.RequestReply(request_status = 1)
+            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.SUCCESS)
         
         else:
-            # TODO Reroute request to primary
-            pass
+            print(f"\t Rerouting SendMessage to {self.primary_server_id}")
+            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.REROUTED,
+                                             rerouted=self.primary_server_id)
+
 
          
     def ReceiveMessage(self, request, context):
@@ -318,21 +327,20 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         """
         print(f"Server {self.server_id}: ReceiveMessage")
         if self.is_primary:
-
-            for message in self._get_pending_messages(request.username): 
-                yield dict_to_ChatMessage(message)
-                print("Hello")
-            
             # TODO: handle replication
             for rep_server in self.replica_stubs:
                 print(f"\tSending replication to server {rep_server}")
                 reply = self.replica_stubs[rep_server].DequeueMessage_StateUpdate(request)
-                
+            
+            for message in self._get_pending_messages(request.username): 
+                yield dict_to_ChatMessage(message)
+            # Empty list of pending messages
             self.db.set(request.username, [])
-        
         else: 
-            # TODO Reroute request to primary
-            pass
+            print(f"\t Rerouting ReceiveMessage to {self.primary_server_id}")
+            # TODO: Response must be of type ChatMessage NOT RequestReply
+            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.REROUTED,
+                                             rerouted=self.primary_server_id)
         
     def NewUser_StateUpdate(self, request, context):
         """
@@ -447,7 +455,7 @@ if __name__ == '__main__':
     for process in processes:
         process.start()
     
-    time.sleep(80)
+    time.sleep(100)
 
     for process in processes:
         process.kill()

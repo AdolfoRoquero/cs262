@@ -61,12 +61,23 @@ service ChatApp {
 
 }
 
+
+
 // message RequestReply
 // Standard object for Server message replies indicating the 
 // status of the request
 message RequestReply {
-     string reply = 1; 
-     int32 request_status = 2;
+    
+    // enumeration of possible RequestStatuses
+    enum RequestStatus {
+        SUCCESS = 0;
+        FAILED = 1;
+        REROUTED = 2;
+    }
+
+    string reply = 1; 
+    RequestStatus request_status = 2;
+    optional string rerouted = 3; 
 }
 
 // message User

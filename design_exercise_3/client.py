@@ -19,7 +19,8 @@ def run():
             elif register_or_login == 'e': 
                 user = chat_app_pb2.User(username = username)
                 reply = stub.Login(user)
-            if reply.reply == 'Success': 
+            if ((reply.request_status == chat_app_pb2.RequestReply.SUCCESS) and
+                (reply.reply == 'Success')): 
                 # Receive messages pending from previous session
                 replies = stub.ReceiveMessage(user) 
 
@@ -39,7 +40,7 @@ def run():
 
             elif command.startswith("delete_user"): 
                 reply = stub.DeleteUser(user)
-                if reply.request_status == 1: 
+                if reply.request_status == chat_app_pb2.RequestReply.SUCCESS: 
                     print(f"User {user.username} deleted.")
                     break 
                 else: 
