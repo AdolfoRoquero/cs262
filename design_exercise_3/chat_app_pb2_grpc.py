@@ -45,6 +45,26 @@ class ChatAppStub(object):
                 request_serializer=chat__app__pb2.User.SerializeToString,
                 response_deserializer=chat__app__pb2.ChatMessage.FromString,
                 )
+        self.NewUser_StateUpdate = channel.unary_unary(
+                '/chatapp.ChatApp/NewUser_StateUpdate',
+                request_serializer=chat__app__pb2.User.SerializeToString,
+                response_deserializer=chat__app__pb2.RequestReply.FromString,
+                )
+        self.DeleteUser_StateUpdate = channel.unary_unary(
+                '/chatapp.ChatApp/DeleteUser_StateUpdate',
+                request_serializer=chat__app__pb2.User.SerializeToString,
+                response_deserializer=chat__app__pb2.RequestReply.FromString,
+                )
+        self.EnqueueMessage_StateUpdate = channel.unary_unary(
+                '/chatapp.ChatApp/EnqueueMessage_StateUpdate',
+                request_serializer=chat__app__pb2.ChatMessage.SerializeToString,
+                response_deserializer=chat__app__pb2.RequestReply.FromString,
+                )
+        self.DequeueMessage_StateUpdate = channel.unary_unary(
+                '/chatapp.ChatApp/DequeueMessage_StateUpdate',
+                request_serializer=chat__app__pb2.User.SerializeToString,
+                response_deserializer=chat__app__pb2.RequestReply.FromString,
+                )
 
 
 class ChatAppServicer(object):
@@ -52,37 +72,74 @@ class ChatAppServicer(object):
     """
 
     def Login(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """Request to log in User into the platform 
+        if the username already exists.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def SignUp(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """Request to sign up new User into the platform 
+        (only if the username is not taken).
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def ListAll(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """Request to list all users in the platform 
+        that match a given filter in ListAllRequest.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteUser(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """Request to delete User.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def SendMessage(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """Request to send a message (all sending info contained in ChatMessage)
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def ReceiveMessage(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """Request to receive ALL pending messages for a given user. 
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def NewUser_StateUpdate(self, request, context):
+        """Request to update replica state when a new user signs up.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteUser_StateUpdate(self, request, context):
+        """Request to update replica state when a user is deleted.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def EnqueueMessage_StateUpdate(self, request, context):
+        """Request to update replica state when a message is sent (message enqueuing).
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DequeueMessage_StateUpdate(self, request, context):
+        """Request to update replica state when a message is received (message dequeuing).
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -119,6 +176,26 @@ def add_ChatAppServicer_to_server(servicer, server):
                     servicer.ReceiveMessage,
                     request_deserializer=chat__app__pb2.User.FromString,
                     response_serializer=chat__app__pb2.ChatMessage.SerializeToString,
+            ),
+            'NewUser_StateUpdate': grpc.unary_unary_rpc_method_handler(
+                    servicer.NewUser_StateUpdate,
+                    request_deserializer=chat__app__pb2.User.FromString,
+                    response_serializer=chat__app__pb2.RequestReply.SerializeToString,
+            ),
+            'DeleteUser_StateUpdate': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteUser_StateUpdate,
+                    request_deserializer=chat__app__pb2.User.FromString,
+                    response_serializer=chat__app__pb2.RequestReply.SerializeToString,
+            ),
+            'EnqueueMessage_StateUpdate': grpc.unary_unary_rpc_method_handler(
+                    servicer.EnqueueMessage_StateUpdate,
+                    request_deserializer=chat__app__pb2.ChatMessage.FromString,
+                    response_serializer=chat__app__pb2.RequestReply.SerializeToString,
+            ),
+            'DequeueMessage_StateUpdate': grpc.unary_unary_rpc_method_handler(
+                    servicer.DequeueMessage_StateUpdate,
+                    request_deserializer=chat__app__pb2.User.FromString,
+                    response_serializer=chat__app__pb2.RequestReply.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -230,5 +307,73 @@ class ChatApp(object):
         return grpc.experimental.unary_stream(request, target, '/chatapp.ChatApp/ReceiveMessage',
             chat__app__pb2.User.SerializeToString,
             chat__app__pb2.ChatMessage.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def NewUser_StateUpdate(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/NewUser_StateUpdate',
+            chat__app__pb2.User.SerializeToString,
+            chat__app__pb2.RequestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def DeleteUser_StateUpdate(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/DeleteUser_StateUpdate',
+            chat__app__pb2.User.SerializeToString,
+            chat__app__pb2.RequestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def EnqueueMessage_StateUpdate(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/EnqueueMessage_StateUpdate',
+            chat__app__pb2.ChatMessage.SerializeToString,
+            chat__app__pb2.RequestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def DequeueMessage_StateUpdate(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/DequeueMessage_StateUpdate',
+            chat__app__pb2.User.SerializeToString,
+            chat__app__pb2.RequestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

@@ -5,8 +5,8 @@ import grpc
 import os 
 
 def run():
-    HOST = os.environ['CHAT_APP_SERVER_HOST']
-    PORT = os.environ['CHAT_APP_SERVER_PORT']
+    HOST = os.environ['REP_SERVER_HOST_1']
+    PORT = os.environ['REP_SERVER_PORT_1']
     channel_ = HOST + ':' + PORT
     with grpc.insecure_channel(channel_) as channel:
         stub = chat_app_pb2_grpc.ChatAppStub(channel)
@@ -19,7 +19,8 @@ def run():
             elif register_or_login == 'e': 
                 user = chat_app_pb2.User(username = username)
                 reply = stub.Login(user)
-            if reply.reply == 'Success': 
+            if ((reply.request_status == chat_app_pb2.RequestReply.SUCCESS) and
+                (reply.reply == 'Success')): 
                 # Receive messages pending from previous session
                 replies = stub.ReceiveMessage(user) 
 
@@ -39,7 +40,7 @@ def run():
 
             elif command.startswith("delete_user"): 
                 reply = stub.DeleteUser(user)
-                if reply.request_status == 1: 
+                if reply.request_status == chat_app_pb2.RequestReply.SUCCESS: 
                     print(f"User {user.username} deleted.")
                     break 
                 else: 
@@ -64,12 +65,6 @@ def run():
 
             for reply in replies:
                 print(f'{reply.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")} {reply.sender.username} > {reply.text}')
-
-
-            
-                
-                    
-
        
         
 if __name__ == "__main__":
