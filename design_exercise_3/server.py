@@ -65,8 +65,6 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         rep_servers_config : dict
           dictionary of the configuration of all the severs
         """
-        print(rep_servers_config.keys())
-        print(server_id)
         assert server_id in rep_servers_config.keys(), f"{server_id} is not a valid id for a replicated server"
         self.server_id = server_id
 
@@ -224,6 +222,10 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                 for rep_server in self.replica_stubs:
                     print(f"\tSending replication to server {rep_server}")
                     reply = self.replica_stubs[rep_server].NewUser_StateUpdate(request)
+                    # time.sleep(1)
+                    # print(reply)
+                    # if not reply: 
+                    #     print("Liveness check failed: ", e)
                     
                 # Add new user to database
                 self._execute_log()
@@ -264,8 +266,12 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                                         and (user != 'root')]
             else:
                 filtered_users = [chat_app_pb2.User(username = user) for user in self._get_registered_users() if (user != 'root')]
+            
+            print("BEFORE RETURN LIST")
             return_list = chat_app_pb2.UserList()
             return_list.users.extend(filtered_users)
+            return_list.request_status = chat_app_pb2.SUCCESS
+            print("RETURN userlist", return_list)
             return return_list
         
         else: 
@@ -444,7 +450,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 
             last_entry = self.pend_log.get("last_entry")
             self.pend_log.set("last_entry", last_entry + 1)
-            self._execute_log
+            self._execute_log()
             
             return chat_app_pb2.RequestReply(reply='OK', request_status = chat_app_pb2.SUCCESS)
 
