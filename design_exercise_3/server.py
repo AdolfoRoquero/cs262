@@ -392,16 +392,16 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             for rep_server in self.replica_stubs:
                 print(f"\tSending replication to server {rep_server}")
                 reply = self.replica_stubs[rep_server].DequeueMessage_StateUpdate(request)
-            
-            message_list = [] 
-            for message in self._get_pending_messages(request.username): 
-                message_list.append(dict_to_ChatMessage(message))
-            return chat_app_pb2.ChatMessageList(messages=message_list, 
-                request_status=chat_app_pb2.SUCCESS)
 
             # Execute actions from log here
             # Empty list of pending messages
+            message_list = [] 
+            for message in self._get_pending_messages(request.username): 
+                message_list.append(dict_to_ChatMessage(message))
+                
             self._execute_log()
+            return chat_app_pb2.ChatMessageList(messages=message_list, 
+                request_status=chat_app_pb2.SUCCESS)
         else: 
             print(f"\t Rerouting ReceiveMessage to {self.primary_server_id}")
             # TODO: Response must be of type ChatMessage NOT RequestReply

@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0e\x63hat_app.proto\x12\x07\x63hatapp\x1a\x1fgoogle/protobuf/timestamp.proto\"q\n\x0cRequestReply\x12\r\n\x05reply\x18\x01 \x01(\t\x12.\n\x0erequest_status\x18\x02 \x01(\x0e\x32\x16.chatapp.RequestStatus\x12\x15\n\x08rerouted\x18\x03 \x01(\tH\x00\x88\x01\x01\x42\x0b\n\t_rerouted\"\x18\n\x04User\x12\x10\n\x08username\x18\x01 \x01(\t\"|\n\x08UserList\x12\x1c\n\x05users\x18\x01 \x03(\x0b\x32\r.chatapp.User\x12.\n\x0erequest_status\x18\x02 \x01(\x0e\x32\x16.chatapp.RequestStatus\x12\x15\n\x08rerouted\x18\x03 \x01(\tH\x00\x88\x01\x01\x42\x0b\n\t_rerouted\")\n\x0eListAllRequest\x12\x17\n\x0fusername_filter\x18\x01 \x01(\t\"\x8e\x01\n\x0b\x43hatMessage\x12\x1d\n\x06sender\x18\x01 \x01(\x0b\x32\r.chatapp.User\x12(\n\rdestinataries\x18\x02 \x01(\x0b\x32\x11.chatapp.UserList\x12\x0c\n\x04text\x18\x03 \x01(\t\x12(\n\x04\x64\x61te\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x11\n\x0fLivenessRequest\"\"\n\x10LivenessResponse\x12\x0e\n\x06status\x18\x01 \x01(\t*6\n\rRequestStatus\x12\x0b\n\x07SUCCESS\x10\x00\x12\n\n\x06\x46\x41ILED\x10\x01\x12\x0c\n\x08REROUTED\x10\x02\x32\x9a\x05\n\x07\x43hatApp\x12-\n\x05Login\x12\r.chatapp.User\x1a\x15.chatapp.RequestReply\x12.\n\x06SignUp\x12\r.chatapp.User\x1a\x15.chatapp.RequestReply\x12\x35\n\x07ListAll\x12\x17.chatapp.ListAllRequest\x1a\x11.chatapp.UserList\x12\x32\n\nDeleteUser\x12\r.chatapp.User\x1a\x15.chatapp.RequestReply\x12:\n\x0bSendMessage\x12\x14.chatapp.ChatMessage\x1a\x15.chatapp.RequestReply\x12\x37\n\x0eReceiveMessage\x12\r.chatapp.User\x1a\x14.chatapp.ChatMessage0\x01\x12;\n\x13NewUser_StateUpdate\x12\r.chatapp.User\x1a\x15.chatapp.RequestReply\x12>\n\x16\x44\x65leteUser_StateUpdate\x12\r.chatapp.User\x1a\x15.chatapp.RequestReply\x12I\n\x1a\x45nqueueMessage_StateUpdate\x12\x14.chatapp.ChatMessage\x1a\x15.chatapp.RequestReply\x12\x42\n\x1a\x44\x65queueMessage_StateUpdate\x12\r.chatapp.User\x1a\x15.chatapp.RequestReply\x12\x44\n\rCheckLiveness\x12\x18.chatapp.LivenessRequest\x1a\x19.chatapp.LivenessResponseB0\n\x18io.grpc.examples.chatAPPB\x0c\x43hatAppProtoP\x01\xa2\x02\x03\x43\x41Pb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0e\x63hat_app.proto\x12\x07\x63hatapp\x1a\x1fgoogle/protobuf/timestamp.proto\"\x80\x01\n\x0cRequestReply\x12\x12\n\x05reply\x18\x01 \x01(\tH\x00\x88\x01\x01\x12.\n\x0erequest_status\x18\x02 \x01(\x0e\x32\x16.chatapp.RequestStatus\x12\x15\n\x08rerouted\x18\x03 \x01(\tH\x01\x88\x01\x01\x42\x08\n\x06_replyB\x0b\n\t_rerouted\"\x18\n\x04User\x12\x10\n\x08username\x18\x01 \x01(\t\"\x94\x01\n\x08UserList\x12\x1c\n\x05users\x18\x01 \x03(\x0b\x32\r.chatapp.User\x12\x33\n\x0erequest_status\x18\x02 \x01(\x0e\x32\x16.chatapp.RequestStatusH\x00\x88\x01\x01\x12\x15\n\x08rerouted\x18\x03 \x01(\tH\x01\x88\x01\x01\x42\x11\n\x0f_request_statusB\x0b\n\t_rerouted\")\n\x0eListAllRequest\x12\x17\n\x0fusername_filter\x18\x01 \x01(\t\"\x8e\x01\n\x0b\x43hatMessage\x12\x1d\n\x06sender\x18\x01 \x01(\x0b\x32\r.chatapp.User\x12(\n\rdestinataries\x18\x02 \x01(\x0b\x32\x11.chatapp.UserList\x12\x0c\n\x04text\x18\x03 \x01(\t\x12(\n\x04\x64\x61te\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\xa5\x01\n\x0f\x43hatMessageList\x12&\n\x08messages\x18\x01 \x03(\x0b\x32\x14.chatapp.ChatMessage\x12\x33\n\x0erequest_status\x18\x02 \x01(\x0e\x32\x16.chatapp.RequestStatusH\x00\x88\x01\x01\x12\x15\n\x08rerouted\x18\x03 \x01(\tH\x01\x88\x01\x01\x42\x11\n\x0f_request_statusB\x0b\n\t_rerouted\"\x11\n\x0fLivenessRequest\"\"\n\x10LivenessResponse\x12\x0e\n\x06status\x18\x01 \x01(\t*6\n\rRequestStatus\x12\x0b\n\x07SUCCESS\x10\x00\x12\n\n\x06\x46\x41ILED\x10\x01\x12\x0c\n\x08REROUTED\x10\x02\x32\x9c\x05\n\x07\x43hatApp\x12-\n\x05Login\x12\r.chatapp.User\x1a\x15.chatapp.RequestReply\x12.\n\x06SignUp\x12\r.chatapp.User\x1a\x15.chatapp.RequestReply\x12\x35\n\x07ListAll\x12\x17.chatapp.ListAllRequest\x1a\x11.chatapp.UserList\x12\x32\n\nDeleteUser\x12\r.chatapp.User\x1a\x15.chatapp.RequestReply\x12:\n\x0bSendMessage\x12\x14.chatapp.ChatMessage\x1a\x15.chatapp.RequestReply\x12\x39\n\x0eReceiveMessage\x12\r.chatapp.User\x1a\x18.chatapp.ChatMessageList\x12;\n\x13NewUser_StateUpdate\x12\r.chatapp.User\x1a\x15.chatapp.RequestReply\x12>\n\x16\x44\x65leteUser_StateUpdate\x12\r.chatapp.User\x1a\x15.chatapp.RequestReply\x12I\n\x1a\x45nqueueMessage_StateUpdate\x12\x14.chatapp.ChatMessage\x1a\x15.chatapp.RequestReply\x12\x42\n\x1a\x44\x65queueMessage_StateUpdate\x12\r.chatapp.User\x1a\x15.chatapp.RequestReply\x12\x44\n\rCheckLiveness\x12\x18.chatapp.LivenessRequest\x1a\x19.chatapp.LivenessResponseB0\n\x18io.grpc.examples.chatAPPB\x0c\x43hatAppProtoP\x01\xa2\x02\x03\x43\x41Pb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'chat_app_pb2', globals())
@@ -22,22 +22,24 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   DESCRIPTOR._serialized_options = b'\n\030io.grpc.examples.chatAPPB\014ChatAppProtoP\001\242\002\003CAP'
-  _REQUESTSTATUS._serialized_start=570
-  _REQUESTSTATUS._serialized_end=624
-  _REQUESTREPLY._serialized_start=60
-  _REQUESTREPLY._serialized_end=173
-  _USER._serialized_start=175
-  _USER._serialized_end=199
-  _USERLIST._serialized_start=201
-  _USERLIST._serialized_end=325
-  _LISTALLREQUEST._serialized_start=327
-  _LISTALLREQUEST._serialized_end=368
-  _CHATMESSAGE._serialized_start=371
-  _CHATMESSAGE._serialized_end=513
-  _LIVENESSREQUEST._serialized_start=515
-  _LIVENESSREQUEST._serialized_end=532
-  _LIVENESSRESPONSE._serialized_start=534
-  _LIVENESSRESPONSE._serialized_end=568
-  _CHATAPP._serialized_start=627
-  _CHATAPP._serialized_end=1293
+  _REQUESTSTATUS._serialized_start=779
+  _REQUESTSTATUS._serialized_end=833
+  _REQUESTREPLY._serialized_start=61
+  _REQUESTREPLY._serialized_end=189
+  _USER._serialized_start=191
+  _USER._serialized_end=215
+  _USERLIST._serialized_start=218
+  _USERLIST._serialized_end=366
+  _LISTALLREQUEST._serialized_start=368
+  _LISTALLREQUEST._serialized_end=409
+  _CHATMESSAGE._serialized_start=412
+  _CHATMESSAGE._serialized_end=554
+  _CHATMESSAGELIST._serialized_start=557
+  _CHATMESSAGELIST._serialized_end=722
+  _LIVENESSREQUEST._serialized_start=724
+  _LIVENESSREQUEST._serialized_end=741
+  _LIVENESSRESPONSE._serialized_start=743
+  _LIVENESSRESPONSE._serialized_end=777
+  _CHATAPP._serialized_start=836
+  _CHATAPP._serialized_end=1504
 # @@protoc_insertion_point(module_scope)
