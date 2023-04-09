@@ -6,6 +6,9 @@ from google.protobuf import message as _message
 from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
+FAILED: RequestStatus
+REROUTED: RequestStatus
+SUCCESS: RequestStatus
 
 class ChatMessage(_message.Message):
     __slots__ = ["date", "destinataries", "sender", "text"]
@@ -25,32 +28,25 @@ class ListAllRequest(_message.Message):
     username_filter: str
     def __init__(self, username_filter: _Optional[str] = ...) -> None: ...
 
-class LogActionTypeReply(_message.Message):
-    __slots__ = ["log_action"]
-    class ActionType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
-    DELETE_USER: LogActionTypeReply.ActionType
-    DEQUEUE_MSG: LogActionTypeReply.ActionType
-    ENQUEUE_MSG: LogActionTypeReply.ActionType
-    LOG_ACTION_FIELD_NUMBER: _ClassVar[int]
-    NEW_USER: LogActionTypeReply.ActionType
-    log_action: LogActionTypeReply.ActionType
-    def __init__(self, log_action: _Optional[_Union[LogActionTypeReply.ActionType, str]] = ...) -> None: ...
+class LivenessRequest(_message.Message):
+    __slots__ = []
+    def __init__(self) -> None: ...
+
+class LivenessResponse(_message.Message):
+    __slots__ = ["status"]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    status: str
+    def __init__(self, status: _Optional[str] = ...) -> None: ...
 
 class RequestReply(_message.Message):
     __slots__ = ["reply", "request_status", "rerouted"]
-    class RequestStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
-    FAILED: RequestReply.RequestStatus
     REPLY_FIELD_NUMBER: _ClassVar[int]
     REQUEST_STATUS_FIELD_NUMBER: _ClassVar[int]
-    REROUTED: RequestReply.RequestStatus
     REROUTED_FIELD_NUMBER: _ClassVar[int]
-    SUCCESS: RequestReply.RequestStatus
     reply: str
-    request_status: RequestReply.RequestStatus
+    request_status: RequestStatus
     rerouted: str
-    def __init__(self, reply: _Optional[str] = ..., request_status: _Optional[_Union[RequestReply.RequestStatus, str]] = ..., rerouted: _Optional[str] = ...) -> None: ...
+    def __init__(self, reply: _Optional[str] = ..., request_status: _Optional[_Union[RequestStatus, str]] = ..., rerouted: _Optional[str] = ...) -> None: ...
 
 class User(_message.Message):
     __slots__ = ["username"]
@@ -59,7 +55,14 @@ class User(_message.Message):
     def __init__(self, username: _Optional[str] = ...) -> None: ...
 
 class UserList(_message.Message):
-    __slots__ = ["users"]
+    __slots__ = ["request_status", "rerouted", "users"]
+    REQUEST_STATUS_FIELD_NUMBER: _ClassVar[int]
+    REROUTED_FIELD_NUMBER: _ClassVar[int]
     USERS_FIELD_NUMBER: _ClassVar[int]
+    request_status: RequestStatus
+    rerouted: str
     users: _containers.RepeatedCompositeFieldContainer[User]
-    def __init__(self, users: _Optional[_Iterable[_Union[User, _Mapping]]] = ...) -> None: ...
+    def __init__(self, users: _Optional[_Iterable[_Union[User, _Mapping]]] = ..., request_status: _Optional[_Union[RequestStatus, str]] = ..., rerouted: _Optional[str] = ...) -> None: ...
+
+class RequestStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = []

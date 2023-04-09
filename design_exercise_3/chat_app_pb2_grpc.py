@@ -65,6 +65,11 @@ class ChatAppStub(object):
                 request_serializer=chat__app__pb2.User.SerializeToString,
                 response_deserializer=chat__app__pb2.RequestReply.FromString,
                 )
+        self.CheckLiveness = channel.unary_unary(
+                '/chatapp.ChatApp/CheckLiveness',
+                request_serializer=chat__app__pb2.LivenessRequest.SerializeToString,
+                response_deserializer=chat__app__pb2.LivenessResponse.FromString,
+                )
 
 
 class ChatAppServicer(object):
@@ -144,6 +149,12 @@ class ChatAppServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CheckLiveness(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ChatAppServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -196,6 +207,11 @@ def add_ChatAppServicer_to_server(servicer, server):
                     servicer.DequeueMessage_StateUpdate,
                     request_deserializer=chat__app__pb2.User.FromString,
                     response_serializer=chat__app__pb2.RequestReply.SerializeToString,
+            ),
+            'CheckLiveness': grpc.unary_unary_rpc_method_handler(
+                    servicer.CheckLiveness,
+                    request_deserializer=chat__app__pb2.LivenessRequest.FromString,
+                    response_serializer=chat__app__pb2.LivenessResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -375,5 +391,22 @@ class ChatApp(object):
         return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/DequeueMessage_StateUpdate',
             chat__app__pb2.User.SerializeToString,
             chat__app__pb2.RequestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def CheckLiveness(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/CheckLiveness',
+            chat__app__pb2.LivenessRequest.SerializeToString,
+            chat__app__pb2.LivenessResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

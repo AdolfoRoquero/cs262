@@ -160,8 +160,11 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             else:
                 raise ValueError("Incorrect action type")
             
-           
-            
+            # move pointer since you have executed the log command 
+            self.pend_log.set('current_ptr', current_ptr + 1)
+
+    def CheckLiveness(self, request, context):
+        return super().CheckLiveness(request, context)
 
     def Login(self, request, context):
         """
@@ -220,8 +223,12 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                 # TODO add persistence
                 for rep_server in self.replica_stubs:
                     print(f"\tSending replication to server {rep_server}")
+                    # try: 
                     reply = self.replica_stubs[rep_server].NewUser_StateUpdate(request)
-
+                    time.sleep(1)
+                    print(reply)
+                    if not reply: 
+                        print("Liveness check failed: ", e)
                 # Add new user to database
                 self._execute_log()
 
@@ -268,8 +275,9 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         else: 
             print(f"\t Rerouting ListAll to {self.primary_server_id}")
             # TODO: Response must be of type ListAll NOT RequestReply
-            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.REROUTED,
-                                             rerouted=self.primary_server_id)
+            return chat_app_pb2.UserList(users=[], 
+                                         request_status = chat_app_pb2.RequestReply.REROUTED,
+                                         rerouted=self.primary_server_id)
 
     def DeleteUser(self, request, context):
         """
