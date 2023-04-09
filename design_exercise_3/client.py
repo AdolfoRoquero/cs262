@@ -26,13 +26,27 @@ class Client():
 
 
     def single_execute(self):
-        if self.command.startswith("listall"):
+        """Execute self.command
+        
+            Returns the reply and the RequestReply type
+        """
+        if self.command == "sign_up":
+            reply = self.server_stub.SignUp(self.user)
+            request_reply = reply
+
+        elif self.command == "login":
+            reply = self.server_stub.Login(self.user)
+            request_reply = reply
+
+        elif self.command.startswith("listall"):
             username_filter = chat_app_pb2.ListAllRequest(
             username_filter = self.command.replace('listall', '').strip())
             reply = self.server_stub.ListAll(username_filter)
+            request_reply = reply.request_reply
 
         elif self.command.startswith("delete_user"): 
             reply = self.server_stub.DeleteUser(self.user)
+            request_reply = reply
 
         elif self.command.startswith("send_message"): 
             msg_datetime = Timestamp()
@@ -43,33 +57,34 @@ class Client():
                 text = self.message, 
                 date = msg_datetime)
             reply = self.server_stub.SendMessage(chat_message)
+            request_reply = reply
 
         elif self.command == "receive_message":
             reply = self.server_stub.ReceiveMessage(self.user) 
-        
+
         else:
             raise ValueError("Command type is not recognized")
 
-        return reply
+        return reply, request_reply
     
     def run_command(self):
         """ Run command by rerouting until a maximum number of attempts is reached"""
 
-        reply = self.single_execute()
+        reply, request_reply = self.single_execute()
+        print("First reply", reply)
         attempts = 0
-        while reply.request_status != chat_app_pb2.RequestReply.SUCCESS:
+        while request_reply.request_status != chat_app_pb2.SUCCESS:
             if attempts > self.max_num_attempts:
                 print("Max number of retries reached")
                 break
-            if reply.request_status != chat_app_pb2.RequestReply.REROUTED:
+            if request_reply.request_status != chat_app_pb2.REROUTED:
                 print(f"Rerouting to server {reply.rerouted}") 
                 self.primary_server = reply.rerouted
                 self.server_stub = self.replica_stubs[self.primary_server]
-            elif reply.request_status != chat_app_pb2.RequestReply.FAILED:
+            elif request_reply.request_status != chat_app_pb2.FAILED:
                 print("Trying new server")
-            reply =  self.single_execute()
+            reply, request_reply =  self.single_execute()
             attempts += 1
-            
         return reply
 
 
@@ -78,22 +93,29 @@ class Client():
         # Login/SignUp routine 
         while True: 
             register_or_login = input("New or existing user (N or E): ").strip().lower()
-            username = input("Enter username: ").strip().lower()
-            if register_or_login == 'n': 
+            if register_or_login == 'n':
+                username = input("Enter username: ").strip().lower()
+                self.command = "sign_up" 
                 self.user = chat_app_pb2.User(username = username)
-                reply = self.server_stub.SignUp(self.user)
-            elif register_or_login == 'e': 
-                self.user = chat_app_pb2.User(username = username)
-                reply = self.server_stub.Login(self.user)
-            if ((reply.request_status == chat_app_pb2.RequestReply.SUCCESS) and
-                (reply.reply == 'Success')): 
-                # Receive messages pending from previous session
-                replies = self.server_stub.ReceiveMessage(self.user) 
-
-                for reply in replies:
-                    print(f'{reply.sender.username} > {reply.text}')
+                self.run_command()
                 break
+            elif register_or_login == 'e': 
+                username = input("Enter username: ").strip().lower()
+                self.user = chat_app_pb2.User(username = username)
+                self.command = "login" 
+                self.run_command()
+                break
+            
+
+            # if (reply.request_reply.request_status == chat_app_pb2.SUCCESS): 
+            #     # Receive messages pending from previous session
+            #     replies = self.server_stub.ReceiveMessage(self.user) 
+
+            #     for reply in replies:
+            #         print(f'{reply.sender.username} > {reply.text}')
+            #     break
         self.command = ''
+        print("\n\n\nEND LOGIN/SIGNUP\n\n\n")
 
         while True: 
             print(f"Commands: 'listall <wildcard>', 'delete_user', 'send_message' OR <enter> to refresh")
@@ -110,7 +132,7 @@ class Client():
             if self.command.startswith("listall"):
                 print(f'{username} > {",".join([user.username for user in reply.users])}')
             elif self.command.startswith("delete_user"): 
-                if reply.request_status == chat_app_pb2.RequestReply.SUCCESS: 
+                if reply.request_status == chat_app_pb2.SUCCESS: 
                     print(f"User {self.user.username} deleted.")
                     break 
                 else: 
@@ -131,5 +153,4 @@ class Client():
         
 if __name__ == "__main__":
     client = Client(config.CONFIG, config.STARTING_PRIMARY_SERVER)
-
     client.run()
