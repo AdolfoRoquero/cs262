@@ -4,6 +4,21 @@ from google.protobuf.timestamp_pb2 import Timestamp
 import grpc
 import os 
 import config
+from enum import Enum
+
+def terminal_command_is_valid(command):
+    if command == "send_message":
+        return True
+    if command == "delete_user":
+        return True
+    if command.startswith("listall"):
+        return True
+    if (command == "") or (command == "\n"):
+        return True
+    return False
+
+
+
 
 class Client():
     def __init__(self, rep_servers_config, primary_server):
@@ -117,6 +132,11 @@ class Client():
         while True: 
             print(f"Commands: 'listall <wildcard>', 'delete_user', 'send_message' OR <enter> to refresh")
             self.command = input(f"{self.user.username}> ").strip()
+            
+            while not terminal_command_is_valid(self.command):
+                print(f"Commands: 'listall <wildcard>', 'delete_user', 'send_message' OR <enter> to refresh")
+                self.command = input(f"{self.user.username}> ").strip()
+
             if not self.command:
                 self.command = "receive_message"
 
@@ -141,7 +161,7 @@ class Client():
             self.destinataries = None
             self.message = None
 
-            # Receive messages pending
+            # Receive messages pending 
             self.command = 'receive_message' 
             replies = self.run_command()
 
