@@ -18,6 +18,7 @@ import time
 from google.protobuf.timestamp_pb2 import Timestamp
 from datetime import datetime
 from enum import Enum
+import sys
 
 class LogActionType(Enum):
     """Action types to be used in log"""
@@ -64,7 +65,8 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         rep_servers_config : dict
           dictionary of the configuration of all the severs
         """
-
+        print(rep_servers_config.keys())
+        print(server_id)
         assert server_id in rep_servers_config.keys(), f"{server_id} is not a valid id for a replicated server"
         self.server_id = server_id
 
@@ -118,12 +120,6 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         # Add ROOT user to database
         self.db.set('root', [])
 
-        # print(self._get_registered_users())
-        # print(self._get_pending_messages())
-        # self.db.ladd('root', {"dest": "javi", 
-        #          "content":"hello javi third"})
-        # print(self._get_pending_messages())
-
 
     def _get_pending_messages(self, username):
         """extracts list of pending messages from db for a given user"""
@@ -148,19 +144,27 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             elif entry['action_type'] == LogActionType.DELETE_USER.value:
                 self.db.rem(params['username'])
 
-
             elif entry['action_type'] == LogActionType.DEQUEUE_MSG.value:
-                # TODO
-                pass
+                self.db.set(params['username'], [])
 
             elif entry['action_type'] == LogActionType.ENQUEUE_MSG.value:
-                # TODO
-                pass
+                destinataries = params['destinataries']
+                for destinatary in destinataries:
+                    if destinatary in self._get_registered_users():
+
+                        # Add message to database
+                        self.db.ladd(destinatary, {"sender": params["sender_username"],
+                                                    "destinataries": params["destinataries"],
+                                                            "text": params["text"],
+                                                            "date": params["date"]})
             else:
                 raise ValueError("Incorrect action type")
             
-           
-            
+            # move pointer since you have executed the log command 
+            self.pend_log.set('current_ptr', current_ptr + 1)
+
+    def CheckLiveness(self, request, context):
+        return super().CheckLiveness(request, context)
 
     def Login(self, request, context):
         """
@@ -219,10 +223,14 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                 # TODO add persistence
                 for rep_server in self.replica_stubs:
                     print(f"\tSending replication to server {rep_server}")
+                    # try: 
                     reply = self.replica_stubs[rep_server].NewUser_StateUpdate(request)
-
+                    time.sleep(1)
+                    print(reply)
+                    if not reply: 
+                        print("Liveness check failed: ", e)
                 # Add new user to database
-                self.db.set(request.username, [])
+                self._execute_log()
 
                 #self.registered_users.users.append(request)
                 print(f'user signup success {request.username}')
@@ -267,8 +275,9 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         else: 
             print(f"\t Rerouting ListAll to {self.primary_server_id}")
             # TODO: Response must be of type ListAll NOT RequestReply
-            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.REROUTED,
-                                             rerouted=self.primary_server_id)
+            return chat_app_pb2.UserList(users=[], 
+                                         request_status = chat_app_pb2.RequestReply.REROUTED,
+                                         rerouted=self.primary_server_id)
 
     def DeleteUser(self, request, context):
         """
@@ -292,7 +301,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                 # TODO : Add to log
                 self.pend_log.ladd("log", {"action_type": LogActionType.DELETE_USER.value, 
                                     "params": {"username": request.username}})
-                                    
+
                 last_entry = self.pend_log.get("last_entry")
                 self.pend_log.set("last_entry", last_entry + 1)
 
@@ -301,9 +310,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                     reply = self.replica_stubs[rep_server].DeleteUser_StateUpdate(request)
 
                 # Remove user from database (TODO: R)
-
-                self.db.rem(request.username)
-
+                self._execute_log()
 
                 return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.SUCCESS) 
             else: 
@@ -346,16 +353,9 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             for rep_server in self.replica_stubs:
                 print(f"\tSending replication to server {rep_server}")
                 reply = self.replica_stubs[rep_server].EnqueueMessage_StateUpdate(request)
-                
-            destinataries = request.destinataries.users
-            for destinatary in destinataries:
-                if destinatary.username in self._get_registered_users():
-
-                    # Add message to database
-                    self.db.ladd(destinatary.username, {"sender": request.sender.username,
-                                                        "destinataries": [user.username for user in destinataries],
-                                                        "text": request.text,
-                                                        "date": request.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")})
+           
+            self._execute_log()   
+            
             return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.SUCCESS)
         
         else:
@@ -400,7 +400,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 
             # Execute actions from log here
             # Empty list of pending messages
-            self.db.set(request.username, [])
+            self._execute_log()
         else: 
             print(f"\t Rerouting ReceiveMessage to {self.primary_server_id}")
             # TODO: Response must be of type ChatMessage NOT RequestReply
@@ -419,7 +419,12 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         else :
 
             # TODO add info to log and respond
-            self.db.set(request.username, [])
+            self.pend_log.ladd("log", {"action_type": LogActionType.NEW_USER.value, 
+                                    "params": {"username": request.username}})
+            last_entry = self.pend_log.get("last_entry")
+            self.pend_log.set("last_entry", last_entry + 1)
+
+            self._execute_log()
 
             return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.SUCCESS)
 
@@ -433,7 +438,12 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             # TODO Error: This should not happen
             raise NotImplementedError('Method not implemented!')
         else :
-            self.db.rem(request.username)
+            self.pend_log.ladd("log", {"action_type": LogActionType.DELETE_USER.value, 
+                                    "params": {"username": request.username}})
+
+            last_entry = self.pend_log.get("last_entry")
+            self.pend_log.set("last_entry", last_entry + 1)
+            self._execute_log
             
             return chat_app_pb2.RequestReply(request_status = 1)
 
@@ -447,15 +457,15 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             # TODO Error: This should not happen
             raise NotImplementedError('Method not implemented!')
         else :
-            destinataries = request.destinataries.users
-            request.ClearField('destinataries')
-            for destinatary in destinataries:
-                if destinatary.username in self._get_registered_users():
-                    # Add message to database
-                    self.db.ladd(destinatary.username, {"sender": request.sender.username,
-                                                        "destinataries": [user.username for user in destinataries],
-                                                        "text": request.text,
-                                                        "date": request.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")})
+            self.pend_log.ladd("log", {"action_type": LogActionType.ENQUEUE_MSG.value, 
+                                    "params": {"sender_username": request.sender.username, 
+                                    "destinataries": [dest.username for dest in request.destinataries.users], 
+                                    "text": request.text, 
+                                    "date": request.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")}})
+
+            last_entry = self.pend_log.get("last_entry")
+            self.pend_log.set("last_entry", last_entry + 1)
+            self._execute_log()
             return chat_app_pb2.RequestReply(request_status = 1)
 
 
@@ -470,9 +480,13 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         else :
 
             # TODO add info to log and respond
-            self.db.set(request.username, [])
-            return chat_app_pb2.RequestReply(request_status = 1)
+            self.pend_log.ladd("log", {"action_type": LogActionType.DEQUEUE_MSG.value, 
+                                    "params": {"username": request.username}})
 
+            last_entry = self.pend_log.get("last_entry")
+            self.pend_log.set("last_entry", last_entry + 1)
+            self._execute_log()
+            return chat_app_pb2.RequestReply(request_status = 1)
 
 
 def server(server_id, primary_server_id, config):
@@ -488,43 +502,58 @@ def server(server_id, primary_server_id, config):
     server.wait_for_termination()
 
 
-
-
 if __name__ == '__main__':
+    if len(sys.argv) != 2: 
+        print("Usage: python server.py <arg>")
+        sys.exit(1)
+    arg = sys.argv[1] 
     config = {
-        "rep_server1" : {
-            "host": os.environ["REP_SERVER_HOST_1"],
-            "port": os.environ["REP_SERVER_PORT_1"],
-            "pend_log_file": os.environ["REP_SERVER_PEND_1"],
-            "db_file": os.environ["REP_SERVER_DB_FILE_1"],
-        },
-        "rep_server2" : {
-            "host": os.environ["REP_SERVER_HOST_2"],
-            "port": os.environ["REP_SERVER_PORT_2"],
-            "pend_log_file": os.environ["REP_SERVER_PEND_2"],
-            "db_file": os.environ["REP_SERVER_DB_FILE_2"],
-        },
-        "rep_server3" : {
-            "host": os.environ["REP_SERVER_HOST_3"],
-            "port": os.environ["REP_SERVER_PORT_3"],
-            "pend_log_file": os.environ["REP_SERVER_PEND_3"],
-            "db_file": os.environ["REP_SERVER_DB_FILE_3"],
+            "rep_server1" : {
+                "host": os.environ["REP_SERVER_HOST_1"],
+                "port": os.environ["REP_SERVER_PORT_1"],
+                "pend_log_file": os.environ["REP_SERVER_PEND_1"],
+                "db_file": os.environ["REP_SERVER_DB_FILE_1"],
+            },
+            "rep_server2" : {
+                "host": os.environ["REP_SERVER_HOST_2"],
+                "port": os.environ["REP_SERVER_PORT_2"],
+                "pend_log_file": os.environ["REP_SERVER_PEND_2"],
+                "db_file": os.environ["REP_SERVER_DB_FILE_2"],
+            },
+            "rep_server3" : {
+                "host": os.environ["REP_SERVER_HOST_3"],
+                "port": os.environ["REP_SERVER_PORT_3"],
+                "pend_log_file": os.environ["REP_SERVER_PEND_3"],
+                "db_file": os.environ["REP_SERVER_DB_FILE_3"],
+            }
         }
-    }
-    primary_server_id = 'rep_server1'
 
-    processes = []
-    for rep_server in config:
-        p = Process(target=server, args=(rep_server, primary_server_id, config))
-        processes.append(p)
-    
-    for process in processes:
-        process.start()
-    
-    time.sleep(100)
+    if arg == '0': 
 
-    for process in processes:
-        process.kill()
+        primary_server_id = 'rep_server1'
+
+        processes = []
+        for rep_server in config:
+            p = Process(target=server, args=(rep_server, primary_server_id, config))
+            processes.append(p)
+        
+        for process in processes:
+            process.start()
+        
+        time.sleep(200)
+
+        for process in processes:
+            process.kill()
+
+    else: 
+        server_id = "rep_server" + arg
+        server(server_id, "rep_server1", config)
+        # chat_app_pb2_grpc.add_ChatAppServicer_to_server(ChatAppServicer(), server)
+        # HOST = os.environ['CHAT_APP_SERVER_HOST']
+        # PORT = os.environ['CHAT_APP_SERVER_PORT']
+        # server.add_insecure_port(f'{HOST}:{PORT}')
+        # server.start()
+        # server.wait_for_termination() 
 
 
 

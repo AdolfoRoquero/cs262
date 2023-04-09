@@ -59,21 +59,21 @@ service ChatApp {
   // Request to update replica state when a message is received (message dequeuing).
   rpc DequeueMessage_StateUpdate(User) returns (RequestReply);
 
+  rpc CheckLiveness(LivenessRequest) returns (LivenessResponse);
+
 }
 
+// enumeration of possible RequestStatuses
+enum RequestStatus {
+    SUCCESS = 0;
+    FAILED = 1;
+    REROUTED = 2;
+}
 
 // message RequestReply
 // Standard object for Server message replies indicating the 
 // status of the request
 message RequestReply {
-    
-    // enumeration of possible RequestStatuses
-    enum RequestStatus {
-        SUCCESS = 0;
-        FAILED = 1;
-        REROUTED = 2;
-    }
-
     string reply = 1; 
     RequestStatus request_status = 2;
     optional string rerouted = 3; 
@@ -91,6 +91,8 @@ message User {
 // and to declare a list of destinataries
 message UserList {
     repeated User users = 1; // List of Users
+    RequestStatus request_status = 2; 
+    optional string rerouted = 3; 
 }
 
 // message ListAllRequest
@@ -109,14 +111,11 @@ message ChatMessage {
     google.protobuf.Timestamp date = 4; // Datetime at which message is sent.
 }
 
-// message LogActionTypeReply {
-//     // enumeration of possible LogActionTypes 
-//     enum ActionType {
-//         NEW_USER = 0;
-//         DELETE_USER = 1;
-//         ENQUEUE_MSG = 2;
-//         DEQUEUE_MSG = 3;
-//     }
-//     ActionType log_action = 2; 
-// }
+message LivenessRequest{
+    // no fields needed 
+}
 
+message LivenessResponse {
+    string status = 1;
+  }
+  
