@@ -74,7 +74,7 @@ enum RequestStatus {
 // Standard object for Server message replies indicating the 
 // status of the request
 message RequestReply {
-    string reply = 1; 
+    optional string reply = 1; 
     RequestStatus request_status = 2;
     optional string rerouted = 3; 
 }
@@ -91,7 +91,7 @@ message User {
 // and to declare a list of destinataries
 message UserList {
     repeated User users = 1; // List of Users
-    RequestStatus request_status = 2; 
+    optional RequestStatus request_status = 2; 
     optional string rerouted = 3; 
 }
 
@@ -109,6 +109,8 @@ message ChatMessage {
     UserList destinataries = 2; // Destinatary users of the message.
     string text = 3; // Text body of the message.
     google.protobuf.Timestamp date = 4; // Datetime at which message is sent.
+    optional RequestStatus request_status = 5; 
+    optional string rerouted = 6;  
 }
 
 message LivenessRequest{
