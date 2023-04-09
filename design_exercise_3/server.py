@@ -21,12 +21,10 @@ from enum import Enum
 
 class LogActionType(Enum):
     """Action types to be used in log"""
-    NEW_USER = 0
-    DELETE_USER = 1
-    ENQUEUE_MSG = 2
-    DEQUEUE_MSG = 3
-
-
+    NEW_USER = 'new_user'
+    DELETE_USER = 'del_user'
+    ENQUEUE_MSG = 'enqueue_msg'
+    DEQUEUE_MSG = 'dequeue_msg'
 
 def dict_to_ChatMessage(message_dict):
     """Function converting from the dictionary 
@@ -49,9 +47,6 @@ def dict_to_ChatMessage(message_dict):
                                             text=message_dict['text'],
                                             date=msg_datetime)
     return chat_message
-
-    
-
 
 class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
     """Interface exported by the server."""
@@ -147,24 +142,24 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         
         for entry in log[current_ptr:]:
             params = entry['params']
-            if entry['action_type'] == LogActionType.NEW_USER:
+            if entry['action_type'] == LogActionType.NEW_USER.value:
                 self.db.set(params['username'], [])
 
-            elif entry['action_type'] == LogActionType.DELETE_USER:
+            elif entry['action_type'] == LogActionType.DELETE_USER.value:
                 self.db.rem(params['username'])
 
 
-            elif entry['action_type'] == LogActionType.DEQUEUE_MSG:
+            elif entry['action_type'] == LogActionType.DEQUEUE_MSG.value:
                 # TODO
                 pass
 
-            elif entry['action_type'] == LogActionType.ENQUEUE_MSG:
+            elif entry['action_type'] == LogActionType.ENQUEUE_MSG.value:
                 # TODO
                 pass
             else:
                 raise ValueError("Incorrect action type")
             
-            self.
+           
             
 
     def Login(self, request, context):
@@ -216,8 +211,10 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             if request.username not in self._get_registered_users(): 
                 
                 # Add to log
-                self.pend_log.ladd({"action_type": LogActionType.NEW_USER, 
+                self.pend_log.ladd("log", {"action_type": LogActionType.NEW_USER.value, 
                                     "params": {"username": request.username}})
+                last_entry = self.pend_log.get("last_entry")
+                self.pend_log.set("last_entry", last_entry + 1)
 
                 # TODO add persistence
                 for rep_server in self.replica_stubs:
@@ -293,9 +290,12 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             if request.username in self._get_registered_users():
 
                 # TODO : Add to log
-                self.pend_log.ladd({"action_type": LogActionType.DELETE_USER, 
+                self.pend_log.ladd("log", {"action_type": LogActionType.DELETE_USER.value, 
                                     "params": {"username": request.username}})
-                
+                                    
+                last_entry = self.pend_log.get("last_entry")
+                self.pend_log.set("last_entry", last_entry + 1)
+
                 for rep_server in self.replica_stubs:
                     print(f"\tSending replication to server {rep_server}")
                     reply = self.replica_stubs[rep_server].DeleteUser_StateUpdate(request)
@@ -331,6 +331,16 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         print(f"Server {self.server_id}: SendMessage")
 
         if self.is_primary:
+
+            # TODO: add to log 
+            self.pend_log.ladd("log", {"action_type": LogActionType.ENQUEUE_MSG.value, 
+                                    "params": {"sender_username": request.sender.username, 
+                                    "destinataries": [dest.username for dest in request.destinataries.users], 
+                                    "text": request.text, 
+                                    "date": request.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")}})
+
+            last_entry = self.pend_log.get("last_entry")
+            self.pend_log.set("last_entry", last_entry + 1)
 
             # Send update to enqueue a message to replicas
             for rep_server in self.replica_stubs:
@@ -373,6 +383,11 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         if self.is_primary:
 
             # Add to pending log here
+            self.pend_log.ladd("log", {"action_type": LogActionType.DEQUEUE_MSG.value, 
+                                    "params": {"username": request.username}})
+
+            last_entry = self.pend_log.get("last_entry")
+            self.pend_log.set("last_entry", last_entry + 1)
 
 
             # TODO: handle replication
@@ -402,6 +417,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             # TODO Error: This should not happen
             raise NotImplementedError('Method not implemented!')
         else :
+
             # TODO add info to log and respond
             self.db.set(request.username, [])
 

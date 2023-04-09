@@ -25,6 +25,18 @@ class ListAllRequest(_message.Message):
     username_filter: str
     def __init__(self, username_filter: _Optional[str] = ...) -> None: ...
 
+class LogActionTypeReply(_message.Message):
+    __slots__ = ["log_action"]
+    class ActionType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = []
+    DELETE_USER: LogActionTypeReply.ActionType
+    DEQUEUE_MSG: LogActionTypeReply.ActionType
+    ENQUEUE_MSG: LogActionTypeReply.ActionType
+    LOG_ACTION_FIELD_NUMBER: _ClassVar[int]
+    NEW_USER: LogActionTypeReply.ActionType
+    log_action: LogActionTypeReply.ActionType
+    def __init__(self, log_action: _Optional[_Union[LogActionTypeReply.ActionType, str]] = ...) -> None: ...
+
 class RequestReply(_message.Message):
     __slots__ = ["reply", "request_status", "rerouted"]
     class RequestStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):

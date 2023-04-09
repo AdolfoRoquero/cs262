@@ -109,4 +109,14 @@ message ChatMessage {
     google.protobuf.Timestamp date = 4; // Datetime at which message is sent.
 }
 
+// message LogActionTypeReply {
+//     // enumeration of possible LogActionTypes 
+//     enum ActionType {
+//         NEW_USER = 0;
+//         DELETE_USER = 1;
+//         ENQUEUE_MSG = 2;
+//         DEQUEUE_MSG = 3;
+//     }
+//     ActionType log_action = 2; 
+// }
 
