@@ -46,7 +46,8 @@ def dict_to_ChatMessage(message_dict):
     chat_message = chat_app_pb2.ChatMessage(sender=chat_app_pb2.User(username=message_dict['sender']),
                                             destinataries=destinataries,
                                             text=message_dict['text'],
-                                            date=msg_datetime)
+                                            date=msg_datetime,
+                                            request_status=chat_app_pb2.SUCCESS)
     return chat_message
 
 class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
@@ -272,8 +273,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             print("BEFORE RETURN LIST")
             return_list = chat_app_pb2.UserList()
             return_list.users.extend(filtered_users)
-            return_list.request_reply = chat_app_pb2.RequestReply(reply="ok",
-                                                                  request_status=chat_app_pb2.SUCCESS)
+            return_list.request_status = chat_app_pb2.SUCCESS
             print("RETURN userlist", return_list)
             return return_list
         
@@ -435,12 +435,10 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             self.pend_log.set("last_entry", last_entry + 1)
 
             self._execute_log()
-            print("Execute log successfully")
 
             return_mes = chat_app_pb2.RequestReply(
                 reply="ok",
                 request_status=chat_app_pb2.SUCCESS)
-            print(return_mes)
             return return_mes
 
         
