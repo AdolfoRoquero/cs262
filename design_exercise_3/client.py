@@ -78,7 +78,6 @@ class Client():
     
     def run_command(self):
         """ Run command by rerouting until a maximum number of attempts is reached"""
-        print(f"Running {self.command}")
         reply = self.single_execute()
         attempts = 0
         while reply.request_status != chat_app_pb2.SUCCESS:
@@ -119,15 +118,14 @@ class Client():
                 reply = self.run_command()
                 # TODO: Check final reply                
                 break
-            
+        
+        # receives any pending messages on login
+        self.command = 'receive_message'
+        replies = self.run_command()
 
-            # if (reply.request_reply.request_status == chat_app_pb2.SUCCESS): 
-            #     # Receive messages pending from previous session
-            #     replies = self.server_stub.ReceiveMessage(self.user) 
-
-            #     for reply in replies:
-            #         print(f'{reply.sender.username} > {reply.text}')
-            #     break
+        for reply in replies.messages:
+            print(f'{reply.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")} {reply.sender.username} > {reply.text}')
+        
 
         while True: 
             print(f"Commands: 'listall <wildcard>', 'delete_user', 'send_message' OR <enter> to refresh")
@@ -139,34 +137,37 @@ class Client():
 
             if not self.command:
                 self.command = "receive_message"
+                replies = self.run_command()
 
-            if self.command.startswith("send_message"): 
+                for reply in replies.messages:
+                    print(f'{reply.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")} {reply.sender.username} > {reply.text}')
+
+
+            elif self.command.startswith("send_message"): 
                 dest = input(f"{self.user.username}> Destinataries (comma separated): ").strip().lower()
                 self.destinataries = [chat_app_pb2.User(username = destinatary.strip()) for destinatary in dest.split(",")]
                 self.message = input(f"{self.user}> Message: ").strip()
+                # Run command until a server processes it.
+                reply = self.run_command()
 
-            # Run command until a server processes it.
-            reply = self.run_command()
-
-            if self.command.startswith("listall"):
+            elif self.command.startswith("listall"):
+                reply = self.run_command()
                 print(f'{username} > {",".join([user.username for user in reply.users])}')
             elif self.command.startswith("delete_user"): 
+                reply = self.run_command()
                 if reply.request_status == chat_app_pb2.SUCCESS: 
                     print(f"User {self.user.username} deleted.")
                     break 
                 else: 
                     print("Unable to delete user.")
             
-            self.command = ''
-            self.destinataries = None
-            self.message = None
+            if self.command != 'receive_message': 
+                self.command = 'receive_message'
+                replies = self.run_command()
 
-            # Receive messages pending 
-            self.command = 'receive_message' 
-            replies = self.run_command()
+                for reply in replies.messages:
+                    print(f'{reply.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")} {reply.sender.username} > {reply.text}')
 
-            for reply in replies.messages:
-                print(f'{reply.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")} {reply.sender.username} > {reply.text}')
                     
 if __name__ == "__main__":
     client = Client(config.CONFIG, config.STARTING_PRIMARY_SERVER)
