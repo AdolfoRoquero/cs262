@@ -164,7 +164,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             self.pend_log.set('current_ptr', current_ptr + 1)
 
     def CheckLiveness(self, request, context):
-        return super().CheckLiveness(request, context)
+        pass
 
     def Login(self, request, context):
         """
@@ -185,15 +185,15 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         if self.is_primary:
             if request.username in self._get_registered_users(): 
                 print(f'user login success {request.username}')
-                return chat_app_pb2.RequestReply(reply = 'Success', 
-                                                 request_status=chat_app_pb2.RequestReply.SUCCESS)
+                return chat_app_pb2.RequestReply(reply = 'OK', 
+                request_status=chat_app_pb2.SUCCESS)
             else: 
                 print(f'user login failure {request.username}')
                 return chat_app_pb2.RequestReply(reply = 'Failure, username not registered',
-                                                 request_status=chat_app_pb2.RequestReply.FAILED)
+                                                 request_status=chat_app_pb2.FAILED)
         else: 
             print(f"\t Rerouting Login to {self.primary_server_id}")
-            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.REROUTED,
+            return chat_app_pb2.RequestReply(reply='OK', request_status=chat_app_pb2.REROUTED,
                                              rerouted=self.primary_server_id)
 
     def SignUp(self, request, context):
@@ -223,26 +223,22 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                 # TODO add persistence
                 for rep_server in self.replica_stubs:
                     print(f"\tSending replication to server {rep_server}")
-                    # try: 
                     reply = self.replica_stubs[rep_server].NewUser_StateUpdate(request)
-                    time.sleep(1)
-                    print(reply)
-                    if not reply: 
-                        print("Liveness check failed: ", e)
+                    
                 # Add new user to database
                 self._execute_log()
 
                 #self.registered_users.users.append(request)
                 print(f'user signup success {request.username}')
                 return chat_app_pb2.RequestReply(reply = 'Success', 
-                                                 request_status=chat_app_pb2.RequestReply.SUCCESS)
+                                                 request_status=chat_app_pb2.SUCCESS)
             else: 
                 print(f'user signup failed {request.username}')
                 return chat_app_pb2.RequestReply(reply='Failure, username taken', 
-                                                 request_status=chat_app_pb2.RequestReply.FAILED)
+                                                 request_status=chat_app_pb2.FAILED)
         else: 
             print(f"\t Rerouting SignUp to {self.primary_server_id}")
-            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.REROUTED,
+            return chat_app_pb2.RequestReply(reply='OK', request_status=chat_app_pb2.REROUTED,
                                              rerouted=self.primary_server_id)
 
     def ListAll(self, request, context):
@@ -276,7 +272,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             print(f"\t Rerouting ListAll to {self.primary_server_id}")
             # TODO: Response must be of type ListAll NOT RequestReply
             return chat_app_pb2.UserList(users=[], 
-                                         request_status = chat_app_pb2.RequestReply.REROUTED,
+                                         request_status = chat_app_pb2.REROUTED,
                                          rerouted=self.primary_server_id)
 
     def DeleteUser(self, request, context):
@@ -312,13 +308,15 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                 # Remove user from database (TODO: R)
                 self._execute_log()
 
-                return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.SUCCESS) 
+                return chat_app_pb2.RequestReply(reply='OK', 
+                request_status=chat_app_pb2.SUCCESS) 
             else: 
                 # Error trying to delete a user that doesn't exist
-                return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.FAILED)
+                return chat_app_pb2.RequestReply(reply='OK', 
+                request_status=chat_app_pb2.FAILED)
         else: 
             print(f"\t Rerouting DeleteUser to {self.primary_server_id}")
-            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.REROUTED,
+            return chat_app_pb2.RequestReply(reply='OK', request_status=chat_app_pb2.REROUTED,
                                              rerouted=self.primary_server_id)
 
     def SendMessage(self, request, context):
@@ -356,11 +354,11 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
            
             self._execute_log()   
             
-            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.SUCCESS)
+            return chat_app_pb2.RequestReply(reply='OK', request_status=chat_app_pb2.SUCCESS)
         
         else:
             print(f"\t Rerouting SendMessage to {self.primary_server_id}")
-            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.REROUTED,
+            return chat_app_pb2.RequestReply(reply='OK', request_status=chat_app_pb2.REROUTED,
                                              rerouted=self.primary_server_id)
 
 
@@ -395,8 +393,11 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                 print(f"\tSending replication to server {rep_server}")
                 reply = self.replica_stubs[rep_server].DequeueMessage_StateUpdate(request)
             
+            message_list = [] 
             for message in self._get_pending_messages(request.username): 
-                yield dict_to_ChatMessage(message)
+                message_list.append(dict_to_ChatMessage(message))
+            return chat_app_pb2.ChatMessageList(messages=message_list, 
+                request_status=chat_app_pb2.SUCCESS)
 
             # Execute actions from log here
             # Empty list of pending messages
@@ -404,8 +405,8 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         else: 
             print(f"\t Rerouting ReceiveMessage to {self.primary_server_id}")
             # TODO: Response must be of type ChatMessage NOT RequestReply
-            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.REROUTED,
-                                             rerouted=self.primary_server_id)
+            return chat_app_pb2.ChatMessageList(messages=[], 
+                request_status=chat_app_pb2.SUCCESS, rerouted=self.primary_server_id)
         
     def NewUser_StateUpdate(self, request, context):
         """
@@ -426,7 +427,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 
             self._execute_log()
 
-            return chat_app_pb2.RequestReply(request_status=chat_app_pb2.RequestReply.SUCCESS)
+            return chat_app_pb2.RequestReply(reply='OK', request_status=chat_app_pb2.SUCCESS)
 
         
 
@@ -445,7 +446,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             self.pend_log.set("last_entry", last_entry + 1)
             self._execute_log
             
-            return chat_app_pb2.RequestReply(request_status = 1)
+            return chat_app_pb2.RequestReply(reply='OK', request_status = chat_app_pb2.SUCCESS)
 
 
     def EnqueueMessage_StateUpdate(self, request, context):
@@ -466,7 +467,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             last_entry = self.pend_log.get("last_entry")
             self.pend_log.set("last_entry", last_entry + 1)
             self._execute_log()
-            return chat_app_pb2.RequestReply(request_status = 1)
+            return chat_app_pb2.RequestReply(reply = 'OK', request_status = chat_app_pb2.SUCCESS)
 
 
     def DequeueMessage_StateUpdate(self, request, context):
@@ -486,7 +487,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             last_entry = self.pend_log.get("last_entry")
             self.pend_log.set("last_entry", last_entry + 1)
             self._execute_log()
-            return chat_app_pb2.RequestReply(request_status = 1)
+            return chat_app_pb2.RequestReply(reply = 'OK', request_status = chat_app_pb2.SUCCESS)
 
 
 def server(server_id, primary_server_id, config):
