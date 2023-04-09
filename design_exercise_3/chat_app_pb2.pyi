@@ -22,6 +22,16 @@ class ChatMessage(_message.Message):
     text: str
     def __init__(self, sender: _Optional[_Union[User, _Mapping]] = ..., destinataries: _Optional[_Union[UserList, _Mapping]] = ..., text: _Optional[str] = ..., date: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
+class ChatMessageList(_message.Message):
+    __slots__ = ["messages", "request_status", "rerouted"]
+    MESSAGES_FIELD_NUMBER: _ClassVar[int]
+    REQUEST_STATUS_FIELD_NUMBER: _ClassVar[int]
+    REROUTED_FIELD_NUMBER: _ClassVar[int]
+    messages: _containers.RepeatedCompositeFieldContainer[ChatMessage]
+    request_status: RequestStatus
+    rerouted: str
+    def __init__(self, messages: _Optional[_Iterable[_Union[ChatMessage, _Mapping]]] = ..., request_status: _Optional[_Union[RequestStatus, str]] = ..., rerouted: _Optional[str] = ...) -> None: ...
+
 class ListAllRequest(_message.Message):
     __slots__ = ["username_filter"]
     USERNAME_FILTER_FIELD_NUMBER: _ClassVar[int]

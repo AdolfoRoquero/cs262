@@ -40,10 +40,10 @@ class ChatAppStub(object):
                 request_serializer=chat__app__pb2.ChatMessage.SerializeToString,
                 response_deserializer=chat__app__pb2.RequestReply.FromString,
                 )
-        self.ReceiveMessage = channel.unary_stream(
+        self.ReceiveMessage = channel.unary_unary(
                 '/chatapp.ChatApp/ReceiveMessage',
                 request_serializer=chat__app__pb2.User.SerializeToString,
-                response_deserializer=chat__app__pb2.ChatMessage.FromString,
+                response_deserializer=chat__app__pb2.ChatMessageList.FromString,
                 )
         self.NewUser_StateUpdate = channel.unary_unary(
                 '/chatapp.ChatApp/NewUser_StateUpdate',
@@ -183,10 +183,10 @@ def add_ChatAppServicer_to_server(servicer, server):
                     request_deserializer=chat__app__pb2.ChatMessage.FromString,
                     response_serializer=chat__app__pb2.RequestReply.SerializeToString,
             ),
-            'ReceiveMessage': grpc.unary_stream_rpc_method_handler(
+            'ReceiveMessage': grpc.unary_unary_rpc_method_handler(
                     servicer.ReceiveMessage,
                     request_deserializer=chat__app__pb2.User.FromString,
-                    response_serializer=chat__app__pb2.ChatMessage.SerializeToString,
+                    response_serializer=chat__app__pb2.ChatMessageList.SerializeToString,
             ),
             'NewUser_StateUpdate': grpc.unary_unary_rpc_method_handler(
                     servicer.NewUser_StateUpdate,
@@ -320,9 +320,9 @@ class ChatApp(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_stream(request, target, '/chatapp.ChatApp/ReceiveMessage',
+        return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/ReceiveMessage',
             chat__app__pb2.User.SerializeToString,
-            chat__app__pb2.ChatMessage.FromString,
+            chat__app__pb2.ChatMessageList.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

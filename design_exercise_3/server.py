@@ -46,8 +46,7 @@ def dict_to_ChatMessage(message_dict):
     chat_message = chat_app_pb2.ChatMessage(sender=chat_app_pb2.User(username=message_dict['sender']),
                                             destinataries=destinataries,
                                             text=message_dict['text'],
-                                            date=msg_datetime,
-                                            request_status=chat_app_pb2.SUCCESS)
+                                            date=msg_datetime)
     return chat_message
 
 class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
@@ -403,6 +402,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             message_list = [] 
             for message in self._get_pending_messages(request.username): 
                 message_list.append(dict_to_ChatMessage(message))
+
             return chat_app_pb2.ChatMessageList(messages=message_list, 
                 request_status=chat_app_pb2.SUCCESS)
 

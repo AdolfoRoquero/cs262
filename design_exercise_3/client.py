@@ -65,11 +65,10 @@ class Client():
         """ Run command by rerouting until a maximum number of attempts is reached"""
         print(f"Running {self.command}")
         reply = self.single_execute()
-        print("First \n", reply)
         attempts = 0
         while reply.request_status != chat_app_pb2.SUCCESS:
             print("Execution was not successful")
-            
+
             if attempts > self.max_num_attempts:
                 print("Max number of retries reached")
                 break
@@ -114,12 +113,12 @@ class Client():
             #     for reply in replies:
             #         print(f'{reply.sender.username} > {reply.text}')
             #     break
-        self.command = ''
-        print("\n\n\nEND LOGIN/SIGNUP\n\n\n")
 
         while True: 
             print(f"Commands: 'listall <wildcard>', 'delete_user', 'send_message' OR <enter> to refresh")
             self.command = input(f"{self.user.username}> ").strip()
+            if not self.command:
+                self.command = "receive_message"
 
             if self.command.startswith("send_message"): 
                 dest = input(f"{self.user.username}> Destinataries (comma separated): ").strip().lower()
@@ -146,11 +145,9 @@ class Client():
             self.command = 'receive_message' 
             replies = self.run_command()
 
-            for reply in replies:
+            for reply in replies.messages:
                 print(f'{reply.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")} {reply.sender.username} > {reply.text}')
-            
-            self.command = ''
-        
+                    
 if __name__ == "__main__":
     client = Client(config.CONFIG, config.STARTING_PRIMARY_SERVER)
     client.run()
