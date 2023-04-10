@@ -1,11 +1,3 @@
-STATE
-
-Add message to queue (after Send message)
-Pop message from queue (after receive message)
-
-Add user to db (after signUp)
-Delete user from db (after Delete)
-
 # 2-Fault Tolerant and persistent Chat Application - CS262 Design Exercise 3 - Spring 2023
 
 ## Description
