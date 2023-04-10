@@ -48,6 +48,36 @@ class LivenessResponse(_message.Message):
     status: str
     def __init__(self, status: _Optional[str] = ...) -> None: ...
 
+class Log(_message.Message):
+    __slots__ = ["action", "chat_message", "user"]
+    class LogType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = []
+    ACTION_FIELD_NUMBER: _ClassVar[int]
+    CHAT_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    DEL_USER: Log.LogType
+    DEQUEUE_MSG: Log.LogType
+    ENQUEUE_MSG: Log.LogType
+    NEW_USER: Log.LogType
+    USER_FIELD_NUMBER: _ClassVar[int]
+    action: Log.LogType
+    chat_message: ChatMessage
+    user: User
+    def __init__(self, action: _Optional[_Union[Log.LogType, str]] = ..., chat_message: _Optional[_Union[ChatMessage, _Mapping]] = ..., user: _Optional[_Union[User, _Mapping]] = ...) -> None: ...
+
+class RebootRequest(_message.Message):
+    __slots__ = ["last_entry"]
+    LAST_ENTRY_FIELD_NUMBER: _ClassVar[int]
+    last_entry: int
+    def __init__(self, last_entry: _Optional[int] = ...) -> None: ...
+
+class RebootResponse(_message.Message):
+    __slots__ = ["last_entry", "log_diff"]
+    LAST_ENTRY_FIELD_NUMBER: _ClassVar[int]
+    LOG_DIFF_FIELD_NUMBER: _ClassVar[int]
+    last_entry: int
+    log_diff: _containers.RepeatedCompositeFieldContainer[Log]
+    def __init__(self, last_entry: _Optional[int] = ..., log_diff: _Optional[_Iterable[_Union[Log, _Mapping]]] = ...) -> None: ...
+
 class RequestReply(_message.Message):
     __slots__ = ["reply", "request_status", "rerouted"]
     REPLY_FIELD_NUMBER: _ClassVar[int]
