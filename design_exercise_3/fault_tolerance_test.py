@@ -36,11 +36,64 @@ def main():
     pend_log1 = pickledb.load(config.CONFIG["rep_server1"]["pend_log_file"], True)
     pend_log2 = pickledb.load(config.CONFIG["rep_server2"]["pend_log_file"], True)
     pend_log3 = pickledb.load(config.CONFIG["rep_server3"]["pend_log_file"], True)
-    assert (pend_log1.get('last_entry') == pend_log2.get('last_entry'))
-    time.sleep(5)
-    for process in processes:
-            process.kill()
 
+
+    db1 = pickledb.load(config.CONFIG["rep_server1"]["db_file"], True)
+    db2 = pickledb.load(config.CONFIG["rep_server2"]["db_file"], True)
+    db3 = pickledb.load(config.CONFIG["rep_server3"]["db_file"], True)
+
+
+    # assert new user signup is correctly reflected in all servers log and db
+    assert (pend_log1.get('last_entry') == pend_log2.get('last_entry'))
+    assert (pend_log1.get('last_entry') == pend_log3.get('last_entry'))
+    assert (db1.get('userA') == db2.get('userA'))
+    assert (db1.get('userA') == db3.get('userA'))
+
+    client2.command = 'sign_up'
+    client2.user = chat_app_pb2.User(username = 'userB')
+    client2.run_command() 
+
+    client3.command = 'sign_up'
+    client3.user = chat_app_pb2.User(username = 'userC')
+    client3.run_command() 
+
+    # assert new user signup is correctly reflected in all servers log and db
+    assert (pend_log1.get('last_entry') == pend_log2.get('last_entry'))
+    assert (pend_log1.get('last_entry') == pend_log3.get('last_entry'))
+    assert (db1.get('userA') == db2.get('userA'))
+    assert (db1.get('userA') == db3.get('userA'))
+
+    # check replication for other commands as well (delete user, send_message, receive_message)
+    client1.command = 'send_message'
+    client1.destinataries = [chat_app_pb2.User(username='userB'), chat_app_pb2.User(username='userC')]
+    client1.message = 'hey everyone'
+    client1.run_command()
+
+    # check that pending messages for userB is the same in all 3 servers 
+    assert (db1.get('userB') == db2.get('userB'))
+    assert (db1.get('userB') == db3.get('userB'))
+
+    # check that pending message gets removed on all databases 
+    client2.command = 'receive_message'
+    client2.run_command() 
+
+    assert (db1.get('userB') == db2.get('userB'))
+    assert (db1.get('userB') == db3.get('userB'))
+
+    client3.command = 'receive_message'
+    client3.run_command() 
+
+    for i, process in enumerate(processes):
+        if i == 2: 
+            # crash the first 2 servers 
+            break 
+        print(f"Killing server {i + 1}")
+        process.kill()
+        client1.command = 'listall'
+        client1.run_command()
+        time.sleep(10)
+    processes[2].kill()
+    
 
 if __name__ == '__main__': 
     main()
