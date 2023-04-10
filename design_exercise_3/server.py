@@ -307,16 +307,13 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             else:
                 filtered_users = [chat_app_pb2.User(username = user) for user in self._get_registered_users() if (user != 'root')]
             
-            print("BEFORE RETURN LIST")
             return_list = chat_app_pb2.UserList()
             return_list.users.extend(filtered_users)
             return_list.request_status = chat_app_pb2.SUCCESS
-            print("RETURN userlist", return_list)
             return return_list
         
         else: 
             print(f"\t Rerouting ListAll to {self.primary_server_id}")
-            # TODO: Response must be of type ListAll NOT RequestReply
             return chat_app_pb2.UserList(users=[], 
                                          request_status = chat_app_pb2.REROUTED,
                                          rerouted=self.primary_server_id)
