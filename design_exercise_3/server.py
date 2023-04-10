@@ -209,6 +209,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         log = self.pend_log.get("log")
         
         for entry in log[current_ptr:]:
+
             params = entry['params']
             if entry['action_type'] == LogActionType.NEW_USER.value:
                 self.db.set(params['username'], [])
@@ -233,7 +234,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                 raise ValueError("Incorrect action type")
             
             # move pointer since you have executed the log command 
-            self.pend_log.set('current_ptr', current_ptr + 1)
+            self.pend_log.set('current_ptr', self.pend_log.get('current_ptr') + 1)
 
 
 
@@ -597,16 +598,8 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             
             last_entry = self.pend_log.get("last_entry")
             self.pend_log.set("last_entry", last_entry + 1)
-        
-        print("Log diff len", request.log_diff)
-        print("Log last entry", self.pend_log.get("last_entry"))
-        print("Log length", len(self.pend_log.get("log")))
-        print("Max last entry", request.last_entry)
-
-
 
         assert (self.pend_log.get("last_entry") == request.last_entry), "Log was not updated to correct size"
-
         return chat_app_pb2.RequestReply(reply = 'OK', request_status = chat_app_pb2.SUCCESS)
     
 
@@ -636,7 +629,7 @@ def server(server_id, primary_server_id, config, reboot):
 
 
     if chat_app_servicer.rebooted:
-        print(f"Waiting for {REBOOT_TIME} before rebooting")
+        print(f"Waiting for {REBOOT_TIME} seconds before rebooting")
         time.sleep(REBOOT_TIME)
         print("Rebooting...\n")
 
@@ -659,10 +652,6 @@ def server(server_id, primary_server_id, config, reboot):
                         max_log_diff = reply.log_diff
                         max_rep_server = rep_server
 
-            print(last_entries)
-            print(max_rep_server)
-
-
             # Updating Primary server to have the latest logs
             if chat_app_servicer.server_id != max_rep_server: 
                 # Update primary log
@@ -684,7 +673,7 @@ def server(server_id, primary_server_id, config, reboot):
                     assert len(log_diff) == -ptr_diff, f"Length mismatch log_diff {len(log_diff)} vs {-ptr_diff}"
 
                     grpc_log_list = []
-                    for log_entry in chat_app_servicer.pend_log.get('log')[:ptr_diff]:
+                    for log_entry in chat_app_servicer.pend_log.get('log')[ptr_diff:]:
                         action = log_action_type_to_grpc[LogActionType(log_entry['action_type'])]
 
                         if LogActionType(log_entry['action_type']) == LogActionType.ENQUEUE_MSG:
@@ -700,13 +689,6 @@ def server(server_id, primary_server_id, config, reboot):
                                                                    log_diff=grpc_log_list)
 
                     reply = chat_app_servicer.replica_stubs[rep_server].RebootPush(grpc_reboot_resp)
-
-
-
-
-
-                    # reboot_log_push = chat_app_pb2.RebootResponse(last_entry=)
-                    # reply = chat_app_servicer.replica_stubs[rep_server].RebootPull(reboot_request)
                     
 
     server.wait_for_termination()
