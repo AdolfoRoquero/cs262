@@ -33,13 +33,12 @@ class Client():
         self.server_stub = self.replica_stubs[self.primary_server]
     
         # Number of attempts to reroute
-        self.max_num_attempts = len(self.replica_stubs) 
+        self.max_num_attempts = len(self.rep_servers_config) 
 
 
     def single_execute(self):
         """Execute self.command
-        
-            Returns the reply and the RequestReply type
+           Returns the reply
         """
         if self.command == "sign_up":
             return self.server_stub.SignUp(self.user, timeout=0.5)
@@ -72,10 +71,11 @@ class Client():
             raise ValueError("Command type is not recognized")
     
         
-
-    
     def run_command(self):
-        """ Run command until it is processed by a server"""
+        """ Run command until it is processed by a server
+            If the primary server is down, this function 
+            will try communicating with the other servers  
+        """
         attempts = 0
         servers = sorted(self.rep_servers_config)
         resend = False 
@@ -107,10 +107,8 @@ class Client():
                 self.primary_server = servers[(servers.index(self.primary_server) + 1) % 3]
                 self.server_stub = self.replica_stubs[self.primary_server]            
         
-        attempts += 1
+            attempts += 1
         return reply
-
-
 
     def run(self): 
         # Login/SignUp routine 
@@ -132,14 +130,13 @@ class Client():
             else:
                 break
 
-        # receives any pending messages on login
+        # Receives any pending messages on login
         self.command = 'receive_message'
         replies = self.run_command()
 
         for reply in replies.messages:
             print(f'{reply.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")} {reply.sender.username} > {reply.text}')
         
-
         while True: 
             print(f"Commands: 'listall <wildcard>', 'delete_user', 'send_message' OR <enter> to refresh")
             self.command = input(f"{self.user.username}> ").strip()
@@ -177,7 +174,6 @@ class Client():
             if self.command != 'receive_message': 
                 self.command = 'receive_message'
                 replies = self.run_command()
-
                 for reply in replies.messages:
                     print(f'{reply.date.ToDatetime().strftime("%d/%m/%Y, %H:%M")} {reply.sender.username} > {reply.text}')
 

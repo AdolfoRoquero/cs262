@@ -21,9 +21,8 @@ from enum import Enum
 import sys
 import threading
 import argparse
-
+from config import CONFIG
 REBOOT_TIME = 20
-
 
 class LogActionType(Enum):
     """Action types to be used in log"""
@@ -39,19 +38,6 @@ log_action_type_to_grpc = {
     LogActionType.DEQUEUE_MSG: chat_app_pb2.Log.DEQUEUE_MSG
 }
 grpc_to_log_action_type = {value:key for key, value in log_action_type_to_grpc.items()}
-   
-    # @classmethod
-    # def to_grpc(cls):
-    #     print(cls)
-    #     if cls.NEW_USER:
-    #         return chat_app_pb2.Log.NEW_USER
-    #     if cls.DEL_USER:
-    #         return chat_app_pb2.Log.DEL_USER 
-    #     if cls.ENQUEUE_MSG:
-    #         return chat_app_pb2.Log.ENQUEUE_MSG
-    #     if cls.DEQUEUE_MSG:
-    #         return chat_app_pb2.Log.DEQUEUE_MSG
-
 
 def dict_to_ChatMessage(message_dict):
     """Function converting from the dictionary 
@@ -74,19 +60,6 @@ def dict_to_ChatMessage(message_dict):
                                             text=message_dict['text'],
                                             date=msg_datetime)
     return chat_message
-
-# def connection_callback(state, end_node, count, instance):
-#     print(f"Channel from {instance.server_id} to {end_node}        ({count})")
-#     if state == grpc.ChannelConnectivity.CONNECTING:
-#         print("Connecting...")
-#     elif state == grpc.ChannelConnectivity.READY:
-#         print("Ready!")
-#     elif state == grpc.ChannelConnectivity.TRANSIENT_FAILURE:
-#         print("Transient failure...")
-#     elif state == grpc.ChannelConnectivity.SHUTDOWN:
-#         print("Shutdown.")
-#     elif state == grpc.ChannelConnectivity.IDLE:
-#         print("Idle.")
 
 def liveness_check_thread(instance):
     while True:
@@ -132,7 +105,6 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         # Boolean indicator of whether this instance is running as the primary
         self.is_primary = primary_server_id == server_id
 
-        
         self.host = rep_servers_config[server_id]['host']
         self.port = rep_servers_config[server_id]['port']
         self.rep_servers_config = rep_servers_config
@@ -143,7 +115,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 
     
     def _initialize_replica_stubs(self):
-        """ Initialize a stub to communicate with the other server replicas"""
+        """ Initialize stubs to communicate with the other server replicas"""
         self.replica_stubs = {}
         self.channels = {} 
         self.replica_is_alive = {} 
@@ -153,14 +125,18 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             if rep_server != self.server_id:
                 channel = grpc.insecure_channel(f"{self.rep_servers_config[rep_server]['host']}:{self.rep_servers_config[rep_server]['port']}")
                 self.channels[rep_server] = channel
-                # self.channels[rep_server].subscribe(lambda state: connection_callback(state, rep_server, count, self), try_to_connect=True)
-
                 self.replica_stubs[rep_server] = chat_app_pb2_grpc.ChatAppStub(self.channels[rep_server])
 
 
     def _initialize_storage(self, dir=os.getcwd()):
+        """
+        Helper function to initialize disk storage files.
+        Sets up all pending log files and db files.
+
+        If the server is rebooting, it will reuse the existing 
+        file instead of creating a new one.
+        """
         print(f"Server {self.server_id}: Initializing storage" + (" with REBOOT" if self.rebooted else "")  )
-        
         pend_log_filename = self.rep_servers_config[self.server_id]['pend_log_file']
         db_filename = self.rep_servers_config[self.server_id]['db_file']
         if not self.rebooted:
@@ -189,26 +165,32 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             # Add ROOT user to database
             self.db.set('root', [])
 
-    
-
-    
-
     def _get_pending_messages(self, username):
-        """extracts list of pending messages from db for a given user"""
+        """
+        Extracts list of pending messages from db for a given user
+        """
         return self.db.get(username)
 
     def _get_registered_users(self):
-        """extracts list of pending messages from db"""
+        """
+        Extracts list of pending messages from db
+        """
         return self.db.getall()
 
     def _execute_log(self):
-        # TODO: Write function that executes the things that are pending in the log
+        """
+        Function to write actions from the pending log into the disk database
+        This is the ONLY part of the code that directly writes to db files.
+
+        Function executes all the entries that are pending in the log (keeps track using pointer)
+        """
         # Function that loops through unexecuted lines in the log and adds them
         current_ptr = self.pend_log.get('current_ptr')
         last_entry = self.pend_log.get('last_entry')
         log = self.pend_log.get("log")
         
         for entry in log[current_ptr:]:
+
             params = entry['params']
             if entry['action_type'] == LogActionType.NEW_USER.value:
                 self.db.set(params['username'], [])
@@ -233,7 +215,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                 raise ValueError("Incorrect action type")
             
             # move pointer since you have executed the log command 
-            self.pend_log.set('current_ptr', current_ptr + 1)
+            self.pend_log.set('current_ptr', self.pend_log.get('current_ptr') + 1)
 
 
 
@@ -255,11 +237,11 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 
         if self.is_primary:
             if request.username in self._get_registered_users(): 
-                print(f'user login success {request.username}')
+                print(f'Login success {request.username}')
                 return chat_app_pb2.RequestReply(reply = 'OK', 
                 request_status=chat_app_pb2.SUCCESS)
             else: 
-                print(f'user login failure {request.username}')
+                print(f'Login failure {request.username}')
                 return chat_app_pb2.RequestReply(reply = 'Failure, username not registered',
                                                  request_status=chat_app_pb2.FAILED)
         else: 
@@ -292,17 +274,15 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                 self.pend_log.set("last_entry", last_entry + 1)
 
                 for rep_server in self.replica_stubs:
-                    print(f"\tSending replication to server {rep_server}")
                     try: 
                         reply = self.replica_stubs[rep_server].NewUser_StateUpdate(request, timeout=0.5)
                     except grpc.RpcError as e:
                         self.replica_is_alive[rep_server] = False
                         print(f"\t\t Exception: {rep_server} not alive")
                     
-                # Add new user to database
+                # Execute pending log entries
                 self._execute_log()
 
-                #self.registered_users.users.append(request)
                 print(f'user signup success {request.username}')
                 return chat_app_pb2.RequestReply(reply = 'Success', 
                                                  request_status=chat_app_pb2.SUCCESS)
@@ -365,17 +345,14 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             Indicates Success or Failure of the deletion.
         """
         print(f"Server {self.server_id}: DeleteUser")
-
         if self.is_primary:
             if request.username in self._get_registered_users():
-
-                # TODO : Add to log
-                self.pend_log.ladd("log", {"action_type": LogActionType.DELETE_USER.value, 
+                # Add to log
+                self.pend_log.ladd("log", {"action_type": LogActionType.DEL_USER.value, 
                                     "params": {"username": request.username}})
 
                 last_entry = self.pend_log.get("last_entry")
                 self.pend_log.set("last_entry", last_entry + 1)
-
                 for rep_server in self.replica_stubs:
                     print(f"\tSending replication to server {rep_server}")
                     try: 
@@ -384,7 +361,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                         self.replica_is_alive[rep_server] = False
                         print(f"\t\t Exception: {rep_server} not alive")
 
-                # Remove user from database (TODO: R)
+                # Execute pending log entries
                 self._execute_log()
 
                 return chat_app_pb2.RequestReply(reply='OK', 
@@ -415,8 +392,6 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         print(f"Server {self.server_id}: SendMessage")
 
         if self.is_primary:
-
-            # TODO: add to log 
             self.pend_log.ladd("log", {"action_type": LogActionType.ENQUEUE_MSG.value, 
                                     "params": {"sender": request.sender.username, 
                                     "destinataries": [dest.username for dest in request.destinataries.users], 
@@ -434,9 +409,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                 except grpc.RpcError as e: 
                     self.replica_is_alive[rep_server] = False
                     print(f"\t\t Exception: {rep_server} not alive")
-
             self._execute_log()   
-            
             return chat_app_pb2.RequestReply(reply='OK', request_status=chat_app_pb2.SUCCESS)
         
         else:
@@ -470,8 +443,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             last_entry = self.pend_log.get("last_entry")
             self.pend_log.set("last_entry", last_entry + 1)
 
-
-            # TODO: handle replication
+            # Send Status update to other replicas
             for rep_server in self.replica_stubs:
                 print(f"\tSending replication to server {rep_server}")
                 try:
@@ -490,40 +462,34 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             return chat_app_pb2.ChatMessageList(messages=message_list, 
                 request_status=chat_app_pb2.SUCCESS)
         else: 
-
             print(f"\t Rerouting ReceiveMessage to {self.primary_server_id}")
-            # TODO: Response must be of type ChatMessage NOT RequestReply
             return chat_app_pb2.ChatMessageList(messages=[], 
                 request_status=chat_app_pb2.SUCCESS, rerouted=self.primary_server_id)
         
     def NewUser_StateUpdate(self, request, context):
-        """
-
-        """
+        """"""
         print(f"Server {self.server_id}: NewUser_StateUpdate")
 
         if self.is_primary:
-            # TODO Error: This should not happen
             raise NotImplementedError('Method not implemented!')
         else :
-
-            # TODO add info to log and respond
             self.pend_log.ladd("log", {"action_type": LogActionType.NEW_USER.value, 
                                     "params": {"username": request.username}})
             last_entry = self.pend_log.get("last_entry")
             self.pend_log.set("last_entry", last_entry + 1)
-
+            
+            # Execute pending log entries
             self._execute_log()
             return chat_app_pb2.RequestReply(reply='OK', request_status=chat_app_pb2.SUCCESS)
 
         
 
     def DeleteUser_StateUpdate(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """"""
         print(f"Server {self.server_id}: DeleteUser_StateUpdate")
 
         if self.is_primary:
-            # TODO Error: This should not happen
+            # Error: This should not happen
             raise NotImplementedError('Method not implemented!')
         else :
             self.pend_log.ladd("log", {"action_type": LogActionType.DELETE_USER.value, 
@@ -537,12 +503,11 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 
 
     def EnqueueMessage_StateUpdate(self, request, context):
-        """Request enqueue a message.
-        """
+        """Request enqueue a message."""
         print(f"Server {self.server_id}: EnqueueMessage_StateUpdate")
 
         if self.is_primary:
-            # TODO Error: This should not happen
+            # Error: This should not happen
             raise NotImplementedError('Method not implemented!')
         else :
             self.pend_log.ladd("log", {"action_type": LogActionType.ENQUEUE_MSG.value, 
@@ -558,18 +523,17 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 
 
     def DequeueMessage_StateUpdate(self, request, context):
-        """Request to dequeue a message.
-        """
+        """Request to dequeue a message. """
         print(f"Server {self.server_id}: DequeueMessage_StateUpdate")
 
         if self.is_primary:
-            # TODO Error: This should not happen
+            # Error: This should not happen
             raise NotImplementedError('Method not implemented!')
         else :
 
-            # TODO add info to log and respond
+            # Add info to log 
             self.pend_log.ladd("log", {"action_type": LogActionType.DEQUEUE_MSG.value, 
-                                    "params": {"username": request.username}})
+                                       "params": {"username": request.username}})
 
             last_entry = self.pend_log.get("last_entry")
             self.pend_log.set("last_entry", last_entry + 1)
@@ -577,11 +541,9 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             return chat_app_pb2.RequestReply(reply = 'OK', request_status = chat_app_pb2.SUCCESS)
     
     def CheckLiveness(self, request, context):
-        """Missing associated documentation comment in .proto file."""
         return chat_app_pb2.LivenessResponse(status='OK')
     
     def RebootPush(self, request, context):
-        """Missing associated documentation comment in .proto file."""
         print(f"Server {self.server_id}: RebootPush")
         assert (request.last_entry >= self.pend_log.get('last_entry'))
         for log_entry in request.log_diff:
@@ -597,16 +559,8 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             
             last_entry = self.pend_log.get("last_entry")
             self.pend_log.set("last_entry", last_entry + 1)
-        
-        print("Log diff len", request.log_diff)
-        print("Log last entry", self.pend_log.get("last_entry"))
-        print("Log length", len(self.pend_log.get("log")))
-        print("Max last entry", request.last_entry)
-
-
 
         assert (self.pend_log.get("last_entry") == request.last_entry), "Log was not updated to correct size"
-
         return chat_app_pb2.RequestReply(reply = 'OK', request_status = chat_app_pb2.SUCCESS)
     
 
@@ -614,9 +568,6 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
         print(f"Server {self.server_id}: RebootPull")
         last_entry = self.pend_log.get('last_entry')
         reboot_response = chat_app_pb2.RebootResponse(last_entry=last_entry)
-        
-        # if request.last_entry < last_entry:
-        #     reboot_response.log_diff = 
         return reboot_response
 
         
@@ -634,9 +585,11 @@ def server(server_id, primary_server_id, config, reboot):
     liveness_thread = threading.Thread(target=liveness_check_thread, args=(chat_app_servicer,))
     liveness_thread.start()
 
-
+    # ---------------
+    # Code to handle rebooting
+    # ---------------
     if chat_app_servicer.rebooted:
-        print(f"Waiting for {REBOOT_TIME} before rebooting")
+        print(f"Waiting for {REBOOT_TIME} seconds before rebooting")
         time.sleep(REBOOT_TIME)
         print("Rebooting...\n")
 
@@ -648,7 +601,7 @@ def server(server_id, primary_server_id, config, reboot):
             max_rep_server = server_id
             max_log_diff = None
             for rep_server in chat_app_servicer.replica_stubs:
-                print(f"Get log from {rep_server}")
+                print(f"\tGet log from {rep_server}")
                 if chat_app_servicer.replica_is_alive[rep_server]:
                     reboot_request = chat_app_pb2.RebootRequest(last_entry=last_entries[server_id])
                     reply = chat_app_servicer.replica_stubs[rep_server].RebootPull(reboot_request)
@@ -659,17 +612,11 @@ def server(server_id, primary_server_id, config, reboot):
                         max_log_diff = reply.log_diff
                         max_rep_server = rep_server
 
-            print(last_entries)
-            print(max_rep_server)
-
-
             # Updating Primary server to have the latest logs
             if chat_app_servicer.server_id != max_rep_server: 
                 # Update primary log
                 for entry in max_log_diff:
                     print(entry)
-                # chat_app_servicer._execute_log()
-            
             
             # Update all remaining replicas from the new version of the primary
             for rep_server in chat_app_servicer.replica_stubs:
@@ -679,12 +626,12 @@ def server(server_id, primary_server_id, config, reboot):
 
                     # compute diff between updated primary and third placed
                     ptr_diff = last_entries[rep_server] - chat_app_servicer.pend_log.get('last_entry')
-                    print(f"Update {rep_server} with diff of {ptr_diff}")
+                    print(f"\tUpdate {rep_server} with diff of {ptr_diff}")
                     log_diff = chat_app_servicer.pend_log.get('log')[ptr_diff:]
                     assert len(log_diff) == -ptr_diff, f"Length mismatch log_diff {len(log_diff)} vs {-ptr_diff}"
 
                     grpc_log_list = []
-                    for log_entry in chat_app_servicer.pend_log.get('log')[:ptr_diff]:
+                    for log_entry in chat_app_servicer.pend_log.get('log')[ptr_diff:]:
                         action = log_action_type_to_grpc[LogActionType(log_entry['action_type'])]
 
                         if LogActionType(log_entry['action_type']) == LogActionType.ENQUEUE_MSG:
@@ -700,51 +647,23 @@ def server(server_id, primary_server_id, config, reboot):
                                                                    log_diff=grpc_log_list)
 
                     reply = chat_app_servicer.replica_stubs[rep_server].RebootPush(grpc_reboot_resp)
-
-
-
-
-
-                    # reboot_log_push = chat_app_pb2.RebootResponse(last_entry=)
-                    # reply = chat_app_servicer.replica_stubs[rep_server].RebootPull(reboot_request)
                     
-
     server.wait_for_termination()
 
 
 if __name__ == '__main__':
-    config = {
-            "rep_server1" : {
-                "host": os.environ["REP_SERVER_HOST_1"],
-                "port": os.environ["REP_SERVER_PORT_1"],
-                "pend_log_file": os.environ["REP_SERVER_PEND_1"],
-                "db_file": os.environ["REP_SERVER_DB_FILE_1"],
-            },
-            "rep_server2" : {
-                "host": os.environ["REP_SERVER_HOST_2"],
-                "port": os.environ["REP_SERVER_PORT_2"],
-                "pend_log_file": os.environ["REP_SERVER_PEND_2"],
-                "db_file": os.environ["REP_SERVER_DB_FILE_2"],
-            },
-            "rep_server3" : {
-                "host": os.environ["REP_SERVER_HOST_3"],
-                "port": os.environ["REP_SERVER_PORT_3"],
-                "pend_log_file": os.environ["REP_SERVER_PEND_3"],
-                "db_file": os.environ["REP_SERVER_DB_FILE_3"],
-            }
-        }
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--server", "-s", help="Server id to boot", type=int, choices=[0, 1, 2, 3], default=0)
-    parser.add_argument("-p", "--primary", help="Id of primary server", choices=config.keys(), default="rep_server1")
+    parser.add_argument("-p", "--primary", help="Id of primary server", choices=CONFIG.keys(), default="rep_server1")
     parser.add_argument("-r", "--reboot", help="Flag to reboot", action='count', default=0)
     args = parser.parse_args()
     
     if args.server == 0: 
         print(f"Running all servers with primary of {args.primary}")
         processes = []
-        for rep_server in config:
-            p = Process(target=server, args=(rep_server, args.primary, config, bool(args.reboot)))
+        for rep_server in CONFIG:
+            p = Process(target=server, args=(rep_server, args.primary, CONFIG, bool(args.reboot)))
             processes.append(p)
         for process in processes:
             process.start()
@@ -754,7 +673,7 @@ if __name__ == '__main__':
     else: 
         server_id = "rep_server" + str(args.server)
         print(f"Running server {server_id} with primary of {args.primary}")
-        server(server_id, args.primary, config, bool(args.reboot))
+        server(server_id, args.primary, CONFIG, bool(args.reboot))
 
 
 
