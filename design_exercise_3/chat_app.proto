@@ -59,10 +59,13 @@ service ChatApp {
   // Request to update replica state when a message is received (message dequeuing).
   rpc DequeueMessage_StateUpdate(User) returns (RequestReply);
 
+  // Request sent periodically between servers to check for liveness.
   rpc CheckLiveness(LivenessRequest) returns (LivenessResponse);
 
+  // Request sent by primary server to backup servers with the last entry logged in the primary server, returns the log diff. 
   rpc RebootPull(RebootRequest) returns (RebootResponse);
 
+  // Request with the diff needed to catch up the receiving server with the most advanced log, returns status of request.
   rpc RebootPush(RebootResponse) returns (RequestReply);
 }
 
@@ -114,22 +117,29 @@ message ChatMessage {
     google.protobuf.Timestamp date = 4; // Datetime at which message is sent. 
 }
 
+// message ChatMessageList 
+// Represents a list of ChatMessage, return type of a receive message request by a user. 
 message ChatMessageList{
     repeated ChatMessage messages = 1; // List of Users
-    optional RequestStatus request_status = 2; 
-    optional string rerouted = 3; 
+    optional RequestStatus request_status = 2; // Status of the request. 
+    optional string rerouted = 3; // ID of primary server. 
 }
 
-
+// message LivenessRequest 
+// Represents the message sent from one server to the others in order to check for liveness.
 message LivenessRequest{
     // no fields needed 
 }
 
+// message LivenessResponse 
+// Represents the message sent back from a server after receiving a liveness request. 
 message LivenessResponse {
-    string status = 1;
+    string status = 1; // 
 }
   
 
+// message Log 
+// Represents a log entry to be shared between servers during reboot. 
 message Log{
     enum LogType {
         DEL_USER = 0;
@@ -137,17 +147,18 @@ message Log{
         ENQUEUE_MSG = 2;
         DEQUEUE_MSG = 3;
     }
-    LogType action = 1;
-    optional ChatMessage chat_message = 2;
-    optional User user = 3;
+    LogType action = 1; // Type of log entry. 
+    optional ChatMessage chat_message = 2; // Represents message object that will be transitted for enqueue and dequeue log requests. 
+    optional User user = 3; // User object for logged requests to add new user or delete user. 
 }
 
+// message RebootRequest 
 message RebootRequest{
-    // no fields needed 
-    int32 last_entry = 1;
+    int32 last_entry = 1; // Pointer to last log entry in server. 
 }
 
+// message RebootResponse 
 message RebootResponse{
-    int32 last_entry = 1;
-    repeated Log log_diff = 2;
+    int32 last_entry = 1; // Pointer to last log entry in server. 
+    repeated Log log_diff = 2; // Log entry to be shared with other server.
 }
