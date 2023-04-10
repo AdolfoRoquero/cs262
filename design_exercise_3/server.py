@@ -19,6 +19,7 @@ from google.protobuf.timestamp_pb2 import Timestamp
 from datetime import datetime
 from enum import Enum
 import sys
+import threading
 
 class LogActionType(Enum):
     """Action types to be used in log"""
@@ -48,6 +49,36 @@ def dict_to_ChatMessage(message_dict):
                                             text=message_dict['text'],
                                             date=msg_datetime)
     return chat_message
+
+# def connection_callback(state, end_node, count, instance):
+#     print(f"Channel from {instance.server_id} to {end_node}        ({count})")
+#     if state == grpc.ChannelConnectivity.CONNECTING:
+#         print("Connecting...")
+#     elif state == grpc.ChannelConnectivity.READY:
+#         print("Ready!")
+#     elif state == grpc.ChannelConnectivity.TRANSIENT_FAILURE:
+#         print("Transient failure...")
+#     elif state == grpc.ChannelConnectivity.SHUTDOWN:
+#         print("Shutdown.")
+#     elif state == grpc.ChannelConnectivity.IDLE:
+#         print("Idle.")
+
+def liveness_check_thread(instance):
+    while True:
+        for rep_server in instance.rep_servers_config: 
+            if rep_server != instance.server_id: 
+                stub = instance.replica_stubs[rep_server]
+                try:
+                    response = stub.CheckLiveness(chat_app_pb2.LivenessRequest(), timeout=0.5)
+                except grpc.RpcError as e:
+                    instance.replica_is_alive[rep_server] = False
+                    print(f"Liveness check failed between {instance.server_id} and {rep_server}: ")
+
+                    if rep_server == instance.primary_server_id: 
+                       instance.primary_server_id = min([rep for rep in instance.rep_servers_config if instance.replica_is_alive[rep]])
+                       instance.is_primary = instance.primary_server_id == instance.server_id 
+                       print(f"primary server changed to {instance.primary_server_id}")
+        time.sleep(3)
 
 class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
     """Interface exported by the server."""
@@ -84,10 +115,20 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
     def _initialize_replica_stubs(self):
         """ Initialize a stub to communicate with the other server replicas"""
         self.replica_stubs = {}
+        self.channels = {} 
+        self.replica_is_alive = {} 
+        
+
         for rep_server in self.rep_servers_config:
+            self.replica_is_alive[rep_server] = True
             if rep_server != self.server_id:
+                print(f"Initialize stub for {rep_server}")
                 channel = grpc.insecure_channel(f"{self.rep_servers_config[rep_server]['host']}:{self.rep_servers_config[rep_server]['port']}")
-                self.replica_stubs[rep_server] = chat_app_pb2_grpc.ChatAppStub(channel)
+                self.channels[rep_server] = channel
+                # self.channels[rep_server].subscribe(lambda state: connection_callback(state, rep_server, count, self), try_to_connect=True)
+
+                self.replica_stubs[rep_server] = chat_app_pb2_grpc.ChatAppStub(self.channels[rep_server])
+
 
     def _initialize_storage(self, dir=os.getcwd()):
         print(f"Server {self.server_id}: Initializing storage")
@@ -161,8 +202,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             # move pointer since you have executed the log command 
             self.pend_log.set('current_ptr', current_ptr + 1)
 
-    def CheckLiveness(self, request, context):
-        pass
+
 
     def Login(self, request, context):
         """
@@ -221,11 +261,11 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
                 # TODO add persistence
                 for rep_server in self.replica_stubs:
                     print(f"\tSending replication to server {rep_server}")
-                    reply = self.replica_stubs[rep_server].NewUser_StateUpdate(request)
-                    # time.sleep(1)
-                    # print(reply)
-                    # if not reply: 
-                    #     print("Liveness check failed: ", e)
+                    try: 
+                        reply = self.replica_stubs[rep_server].NewUser_StateUpdate(request, timeout=0.5)
+                    except grpc.RpcError as e:
+                        self.replica_is_alive[rep_server] = False
+                        print("Exception", e)
                     
                 # Add new user to database
                 self._execute_log()
@@ -309,7 +349,11 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
 
                 for rep_server in self.replica_stubs:
                     print(f"\tSending replication to server {rep_server}")
-                    reply = self.replica_stubs[rep_server].DeleteUser_StateUpdate(request)
+                    try: 
+                        reply = self.replica_stubs[rep_server].DeleteUser_StateUpdate(request, timeout=0.5)
+                    except grpc.RpcError as e: 
+                        self.replica_is_alive[rep_server] = False
+                        print("Exception", e)
 
                 # Remove user from database (TODO: R)
                 self._execute_log()
@@ -356,8 +400,12 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             # Send update to enqueue a message to replicas
             for rep_server in self.replica_stubs:
                 print(f"\tSending replication to server {rep_server}")
-                reply = self.replica_stubs[rep_server].EnqueueMessage_StateUpdate(request)
-           
+                try: 
+                    reply = self.replica_stubs[rep_server].EnqueueMessage_StateUpdate(request, timeout=0.5)
+                except grpc.RpcError as e: 
+                    self.replica_is_alive[rep_server] = False
+                    print("Exception", e)
+
             self._execute_log()   
             
             return chat_app_pb2.RequestReply(reply='OK', request_status=chat_app_pb2.SUCCESS)
@@ -397,7 +445,11 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             # TODO: handle replication
             for rep_server in self.replica_stubs:
                 print(f"\tSending replication to server {rep_server}")
-                reply = self.replica_stubs[rep_server].DequeueMessage_StateUpdate(request)
+                try:
+                    reply = self.replica_stubs[rep_server].DequeueMessage_StateUpdate(request, timeout=0.5)
+                except grpc.RpcError as e: 
+                    self.replica_is_alive[rep_server] = False
+                    print("Exception", e)
 
             # Execute actions from log here
             # Empty list of pending messages
@@ -409,6 +461,7 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             return chat_app_pb2.ChatMessageList(messages=message_list, 
                 request_status=chat_app_pb2.SUCCESS)
         else: 
+
             print(f"\t Rerouting ReceiveMessage to {self.primary_server_id}")
             # TODO: Response must be of type ChatMessage NOT RequestReply
             return chat_app_pb2.ChatMessageList(messages=[], 
@@ -494,18 +547,25 @@ class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):
             self.pend_log.set("last_entry", last_entry + 1)
             self._execute_log()
             return chat_app_pb2.RequestReply(reply = 'OK', request_status = chat_app_pb2.SUCCESS)
-
+    
+    def CheckLiveness(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        return chat_app_pb2.LivenessResponse(status='OK')
 
 def server(server_id, primary_server_id, config):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-
-    chat_app_pb2_grpc.add_ChatAppServicer_to_server(
-        ChatAppServicer(server_id, primary_server_id, config), server)
+    chat_app_servicer = ChatAppServicer(server_id, primary_server_id, config)
+    chat_app_pb2_grpc.add_ChatAppServicer_to_server(chat_app_servicer, server)
     
     host = config[server_id]['host']
     port = config[server_id]['port']
     server.add_insecure_port(f'{host}:{port}')
     server.start()
+
+    # Start the liveness check thread with the existing gRPC channel and stub
+    liveness_thread = threading.Thread(target=liveness_check_thread, args=(chat_app_servicer,))
+    liveness_thread.start()
+
     server.wait_for_termination()
 
 
@@ -555,12 +615,6 @@ if __name__ == '__main__':
     else: 
         server_id = "rep_server" + arg
         server(server_id, "rep_server1", config)
-        # chat_app_pb2_grpc.add_ChatAppServicer_to_server(ChatAppServicer(), server)
-        # HOST = os.environ['CHAT_APP_SERVER_HOST']
-        # PORT = os.environ['CHAT_APP_SERVER_PORT']
-        # server.add_insecure_port(f'{HOST}:{PORT}')
-        # server.start()
-        # server.wait_for_termination() 
 
 
 

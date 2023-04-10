@@ -46,18 +46,18 @@ class Client():
             Returns the reply and the RequestReply type
         """
         if self.command == "sign_up":
-            return self.server_stub.SignUp(self.user)
+            return self.server_stub.SignUp(self.user, timeout=0.5)
 
         elif self.command == "login":
-            return self.server_stub.Login(self.user)
+            return self.server_stub.Login(self.user, timeout=0.5)
 
         elif self.command.startswith("listall"):
             username_filter = chat_app_pb2.ListAllRequest(
             username_filter = self.command.replace('listall', '').strip())
-            return self.server_stub.ListAll(username_filter)
+            return self.server_stub.ListAll(username_filter, timeout=0.5)
 
         elif self.command.startswith("delete_user"): 
-            return self.server_stub.DeleteUser(self.user)
+            return self.server_stub.DeleteUser(self.user, timeout=0.5)
 
         elif self.command.startswith("send_message"): 
             msg_datetime = Timestamp()
@@ -67,35 +67,51 @@ class Client():
                 destinataries = chat_app_pb2.UserList(users=self.destinataries), 
                 text = self.message, 
                 date = msg_datetime)
-            return self.server_stub.SendMessage(chat_message)
+            return self.server_stub.SendMessage(chat_message, timeout=0.5)
 
         elif self.command == "receive_message":
-            return self.server_stub.ReceiveMessage(self.user) 
+            return self.server_stub.ReceiveMessage(self.user, timeout=0.5) 
 
         else:
             raise ValueError("Command type is not recognized")
+    
+        
 
     
     def run_command(self):
         """ Run command by rerouting until a maximum number of attempts is reached"""
-        reply = self.single_execute()
         attempts = 0
-        while reply.request_status != chat_app_pb2.SUCCESS:
-            print("Execution was not successful")
+        servers = sorted(self.rep_servers_config)
+        resend = False 
+        try: 
+            reply = self.single_execute()
+        except grpc.RpcError as e:
+            self.primary_server = servers[(servers.index(self.primary_server) + 1) % 3]
+            print(f"New primary {self.primary_server}")
+            self.server_stub = self.replica_stubs[self.primary_server]
+            resend = True
+
+        while resend or (reply.request_status != chat_app_pb2.SUCCESS):
 
             if attempts > self.max_num_attempts:
                 print("Max number of retries reached")
                 break
 
-            if reply.request_status != chat_app_pb2.REROUTED:
-                print(f"\tRerouting to server {reply.rerouted}") 
-                self.primary_server = reply.rerouted
-                self.server_stub = self.replica_stubs[self.primary_server]
-            elif reply.request_status != chat_app_pb2.FAILED:
-                print("\tTrying new server")
-
-            reply = self.single_execute()
-            attempts += 1
+            if not resend:
+                if reply.request_status == chat_app_pb2.REROUTED:
+                    print(f"\tRerouting to server {reply.rerouted}") 
+                    self.primary_server = reply.rerouted
+                    self.server_stub = self.replica_stubs[self.primary_server]
+                
+            try: 
+                reply = self.single_execute()
+                resend = False 
+            except grpc.RpcError as e:
+                resend = True 
+                self.primary_server = servers[(servers.index(self.primary_server) + 1) % 3]
+                self.server_stub = self.replica_stubs[self.primary_server]            
+        
+        attempts += 1
         return reply
 
 
@@ -146,7 +162,7 @@ class Client():
             elif self.command.startswith("send_message"): 
                 dest = input(f"{self.user.username}> Destinataries (comma separated): ").strip().lower()
                 self.destinataries = [chat_app_pb2.User(username = destinatary.strip()) for destinatary in dest.split(",")]
-                self.message = input(f"{self.user}> Message: ").strip()
+                self.message = input(f"{self.user.username}> Message: ").strip()
                 # Run command until a server processes it.
                 reply = self.run_command()
 
