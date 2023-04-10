@@ -18,11 +18,8 @@ def terminal_command_is_valid(command):
     return False
 
 
-
-
 class Client():
     def __init__(self, rep_servers_config, primary_server):
-        
         self.rep_servers_config = rep_servers_config
         
         # Initialize a stub for every server
@@ -34,8 +31,7 @@ class Client():
         assert primary_server in self.rep_servers_config, f"Server id {primary_server} is not valid"
         self.primary_server = primary_server
         self.server_stub = self.replica_stubs[self.primary_server]
-        
-
+    
         # Number of attempts to reroute
         self.max_num_attempts = len(self.replica_stubs) 
 
@@ -79,11 +75,11 @@ class Client():
 
     
     def run_command(self):
-        """ Run command by rerouting until a maximum number of attempts is reached"""
+        """ Run command until it is processed by a server"""
         attempts = 0
         servers = sorted(self.rep_servers_config)
         resend = False 
-        try: 
+        try:
             reply = self.single_execute()
         except grpc.RpcError as e:
             self.primary_server = servers[(servers.index(self.primary_server) + 1) % 3]
@@ -92,7 +88,6 @@ class Client():
             resend = True
 
         while resend or (reply.request_status != chat_app_pb2.SUCCESS):
-
             if attempts > self.max_num_attempts:
                 print("Max number of retries reached")
                 break
@@ -102,7 +97,8 @@ class Client():
                     print(f"\tRerouting to server {reply.rerouted}") 
                     self.primary_server = reply.rerouted
                     self.server_stub = self.replica_stubs[self.primary_server]
-                
+                elif reply.request_status == chat_app_pb2.FAILED:
+                    break    
             try: 
                 reply = self.single_execute()
                 resend = False 
@@ -125,16 +121,17 @@ class Client():
                 self.command = "sign_up" 
                 self.user = chat_app_pb2.User(username = username)
                 reply = self.run_command()
-                # TODO: Check final reply
-                break
             elif register_or_login == 'e': 
                 username = input("Enter username: ").strip().lower()
                 self.user = chat_app_pb2.User(username = username)
                 self.command = "login" 
                 reply = self.run_command()
-                # TODO: Check final reply                
+
+            if reply.request_status == chat_app_pb2.FAILED:
+                print(reply.reply)
+            else:
                 break
-        
+
         # receives any pending messages on login
         self.command = 'receive_message'
         replies = self.run_command()

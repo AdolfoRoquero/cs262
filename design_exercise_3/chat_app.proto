@@ -61,6 +61,9 @@ service ChatApp {
 
   rpc CheckLiveness(LivenessRequest) returns (LivenessResponse);
 
+  rpc RebootPull(RebootRequest) returns (RebootResponse);
+
+  rpc RebootPush(RebootResponse) returns (RequestReply);
 }
 
 // enumeration of possible RequestStatuses
@@ -124,5 +127,27 @@ message LivenessRequest{
 
 message LivenessResponse {
     string status = 1;
-  }
+}
   
+
+message Log{
+    enum LogType {
+        DEL_USER = 0;
+        NEW_USER = 1;
+        ENQUEUE_MSG = 2;
+        DEQUEUE_MSG = 3;
+    }
+    LogType action = 1;
+    optional ChatMessage chat_message = 2;
+    optional User user = 3;
+}
+
+message RebootRequest{
+    // no fields needed 
+    int32 last_entry = 1;
+}
+
+message RebootResponse{
+    int32 last_entry = 1;
+    repeated Log log_diff = 2;
+}

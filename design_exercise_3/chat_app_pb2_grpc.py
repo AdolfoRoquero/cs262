@@ -70,6 +70,16 @@ class ChatAppStub(object):
                 request_serializer=chat__app__pb2.LivenessRequest.SerializeToString,
                 response_deserializer=chat__app__pb2.LivenessResponse.FromString,
                 )
+        self.RebootPull = channel.unary_unary(
+                '/chatapp.ChatApp/RebootPull',
+                request_serializer=chat__app__pb2.RebootRequest.SerializeToString,
+                response_deserializer=chat__app__pb2.RebootResponse.FromString,
+                )
+        self.RebootPush = channel.unary_unary(
+                '/chatapp.ChatApp/RebootPush',
+                request_serializer=chat__app__pb2.RebootResponse.SerializeToString,
+                response_deserializer=chat__app__pb2.RequestReply.FromString,
+                )
 
 
 class ChatAppServicer(object):
@@ -155,6 +165,18 @@ class ChatAppServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def RebootPull(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RebootPush(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ChatAppServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -212,6 +234,16 @@ def add_ChatAppServicer_to_server(servicer, server):
                     servicer.CheckLiveness,
                     request_deserializer=chat__app__pb2.LivenessRequest.FromString,
                     response_serializer=chat__app__pb2.LivenessResponse.SerializeToString,
+            ),
+            'RebootPull': grpc.unary_unary_rpc_method_handler(
+                    servicer.RebootPull,
+                    request_deserializer=chat__app__pb2.RebootRequest.FromString,
+                    response_serializer=chat__app__pb2.RebootResponse.SerializeToString,
+            ),
+            'RebootPush': grpc.unary_unary_rpc_method_handler(
+                    servicer.RebootPush,
+                    request_deserializer=chat__app__pb2.RebootResponse.FromString,
+                    response_serializer=chat__app__pb2.RequestReply.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -408,5 +440,39 @@ class ChatApp(object):
         return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/CheckLiveness',
             chat__app__pb2.LivenessRequest.SerializeToString,
             chat__app__pb2.LivenessResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def RebootPull(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/RebootPull',
+            chat__app__pb2.RebootRequest.SerializeToString,
+            chat__app__pb2.RebootResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def RebootPush(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatapp.ChatApp/RebootPush',
+            chat__app__pb2.RebootResponse.SerializeToString,
+            chat__app__pb2.RequestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
