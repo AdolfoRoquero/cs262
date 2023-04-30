@@ -1,0 +1,149 @@
+// Copyright 2015 gRPC authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless  by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// python -m grpc_tools.protoc -I=. --python_out=. --pyi_out=.  --grpc_python_out=. ./quiplash.proto
+
+syntax = "proto3";
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_package = "io.grpc.examples.chatAPP";
+option java_outer_classname = "ChatAppProto";
+option objc_class_prefix = "CAP";
+
+package chatapp;
+
+// Interface exported by the server.
+service Quiplash {
+
+  // Request to enter as a User into a game 
+  rpc JoinGame(User) returns (RequestReply); 
+
+  // Request from primary server 
+  rpc AskQuestion(Question) returns (RequestReply); 
+
+
+//   // Request to list all users in the platform 
+//   // that match a given filter in ListAllRequest.
+//   rpc ListAll(ListAllRequest) returns (UserList); 
+  
+//   // Request to delete User.
+//   rpc DeleteUser(User) returns (RequestReply);
+
+//   // Request to send a message (all sending info contained in ChatMessage)
+//   rpc SendMessage(ChatMessage) returns (RequestReply);
+
+//   // Request to receive ALL pending messages for a given user. 
+//   rpc ReceiveMessage(User) returns (ChatMessageList);
+
+//   //  Request to update replica state when a new user signs up.
+//   rpc NewUser_StateUpdate(User) returns (RequestReply); 
+  
+//   //  Request to update replica state when a user is deleted.
+//   rpc DeleteUser_StateUpdate(User) returns (RequestReply); 
+
+//   // Request to update replica state when a message is sent (message enqueuing).
+//   rpc EnqueueMessage_StateUpdate(ChatMessage) returns (RequestReply); 
+  
+//   // Request to update replica state when a message is received (message dequeuing).
+//   rpc DequeueMessage_StateUpdate(User) returns (RequestReply);
+
+//   // Request sent periodically between servers to check for liveness.
+//   rpc CheckLiveness(LivenessRequest) returns (LivenessResponse);
+
+//   // Request sent by primary server to backup servers with the last entry logged in the primary server, returns the log diff. 
+//   rpc RebootPull(RebootRequest) returns (RebootResponse);
+
+//   // Request with the diff needed to catch up the receiving server with the most advanced log, returns status of request.
+//   rpc RebootPush(RebootResponse) returns (RequestReply);
+}
+
+// enumeration of possible RequestStatuses
+enum RequestStatus {
+    SUCCESS = 0;
+    FAILED = 1;
+    REROUTED = 2;
+}
+
+// message RequestReply
+// Standard object for Server message replies indicating the 
+// status of the request
+message RequestReply {
+    optional string reply = 1; 
+    RequestStatus request_status = 2;
+    optional string rerouted = 3; 
+}
+
+// message User
+// Represents the User object (only username in this case)
+message User {
+    string username = 1; // Username (uniquely identifies user)
+}
+
+message Question {
+    string question_id = 1; // Unique identifier for the question 
+    string question_text = 2; // Question to be answered 
+    string topic = 3; // Systems related or random 
+}
+
+message Answer {
+    string answer_id = 1; // Unique identifier for this answer 
+    User respondent = 2; // Identifies which user answered the question 
+    string answer_text = 3; // User's answer to the question 
+    string question_id = 4; // Identifies the question answered 
+}
+
+message Vote {
+    User voter = 1; // User who voted for that answer; 
+    string question_id = 2; // Identifies the question voted on; 
+    string answer_id = 3; // Identifies the answer the voter voted for; 
+}
+
+
+// message LivenessRequest 
+// Represents the message sent from one server to the others in order to check for liveness.
+message LivenessRequest{
+    // no fields needed 
+}
+
+// message LivenessResponse 
+// Represents the message sent back from a server after receiving a liveness request. 
+message LivenessResponse {
+    string status = 1; // 
+}
+  
+
+// // message Log 
+// // Represents a log entry to be shared between servers during reboot. 
+// message Log{
+//     enum LogType {
+//         DEL_USER = 0;
+//         NEW_USER = 1;
+//         ENQUEUE_MSG = 2;
+//         DEQUEUE_MSG = 3;
+//     }
+//     LogType action = 1; // Type of log entry. 
+//     optional ChatMessage chat_message = 2; // Represents message object that will be transitted for enqueue and dequeue log requests. 
+//     optional User user = 3; // User object for logged requests to add new user or delete user. 
+// }
+
+// // message RebootRequest 
+// message RebootRequest{
+//     int32 last_entry = 1; // Pointer to last log entry in server. 
+// }
+
+// // message RebootResponse 
+// message RebootResponse{
+//     int32 last_entry = 1; // Pointer to last log entry in server. 
+//     repeated Log log_diff = 2; // Log entry to be shared with other server.
+// }
