@@ -12,6 +12,7 @@ import socket
 import threading
 from client import client_handle
 import numpy as np 
+import time
 
 
 class QuiplashServicer(object):
@@ -109,8 +110,10 @@ class QuiplashServicer(object):
             channel = grpc.insecure_channel(f"{node_ip_address}:{os.environ['QUIPLASH_SERVER_PORT']}")
             self.stubs[node_ip_address] = quiplash_pb2_grpc.QuiplashStub(channel)
             #print(f'Created stub to {node_ip_address}')
-    def start_game(self, mode='all'):
-        self.game_started = True 
+
+    def assign_questions(self, mode='all'):
+        """
+        """
         questions = self.db.get('question_prompt')
         if mode == 'all': 
             question_ids = list(questions.keys())
@@ -119,6 +122,7 @@ class QuiplashServicer(object):
             pass
         else:
             pass
+
         questions_to_assign = np.random.choice(question_ids, self.num_players)
         np.random.shuffle(questions_to_assign) 
         questions_to_assign = list(questions_to_assign)
@@ -126,16 +130,81 @@ class QuiplashServicer(object):
 
         questions_to_assign = questions_to_assign + [questions_to_assign[self.num_players-1]] + questions_to_assign[:self.num_players-1]
         print(questions_to_assign)
+        assigned_questions = {}
+        
         for idx, player in enumerate(self._get_players()):
+            print(player)
+            player_ip = self.db.dget('assignment', player)[player_ip]
+            assigned_questions[player_ip] = (questions_to_assign[idx], questions_to_assign[idx + self.num_players])
+
+            # Handle persistence
             temp = self.db.get("assignment")
             temp[player]["questions"][questions_to_assign[idx]] = {"answer": "No answer", "vote_count":0}
             temp[player]["questions"][questions_to_assign[idx + self.num_players]] = {"answer": "No answer", "vote_count":0}
             self.db.set("assignment", temp)
+        
+        return assigned_questions
+        
+
+    def client_handle(self): 
+        # JoinGame routine 
+        if not self.is_primary: 
+            while True: 
+                username = input("Enter username: ").strip().lower()
+                user = quiplash_pb2.User(username=username, ip_address=self.ip)
+                reply = self.stubs[self.primary_ip].JoinGame(user)
+                if reply.request_status == quiplash_pb2.FAILED:
+                    print(reply.reply)
+                else:
+                    break
+            print(f"Successfully joined game, username {username}")
+
+            while not self.game_started: 
+                time.sleep(0.5)
+                continue 
+            while self.game_started: 
+                continue 
+        else: 
+            while True: 
+                username = input("Enter username: ").strip().lower()
+                if username in self._get_players(): 
+                    print("Error: username taken")
+                else: 
+                    self.add_new_player(username, self.ip)
+                    break 
+            print("\n Once all players have joined the room, press enter to start game \n")
+            while True: 
+                start_game = input("")
+                if start_game == '': 
+                    break 
+            game_start_text = "Starting the game. Ready... Set.... QUIPLASH"
+            print(f"\n {game_start_text} \n")
+
+            self.game_started = True 
+
+            # notifies other players game will begin 
+            for ip, stub in self.stubs.items(): 
+                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START, text=game_start_text)
+                reply = stub.NotifyPlayers(notification)
+
+            assigned_questions = self.assign_questions()
+
+            for ip, stub in self.stubs.items(): 
+                player_questions = assigned_questions[ip]
+                grpc_question_list = []
+                for question_id in player_questions:
+                    question = self.db.dget('question_prompt', question_id)
+                    print(question)
+                    # grpc_question = quiplash_pb2.Question(type)
+                
+            # return quiplash_pb2.QuestionList(question_list=grpc_question_list)
+
+                
+ 
+
+            
+        
            
-
-
-
-    
 
 def serve(server_id, primary_ip):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
@@ -148,9 +217,8 @@ def serve(server_id, primary_ip):
     server.start()
 
     # Start the client thread that takes terminal input with gRPC channel and stub
-    client_thread = threading.Thread(target=client_handle, args=(quiplash_servicer,))
+    client_thread = threading.Thread(target=quiplash_servicer.client_handle)
     client_thread.start()
-
 
     server.wait_for_termination()
 

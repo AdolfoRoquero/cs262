@@ -20,9 +20,9 @@ class QuiplashStub(object):
                 request_serializer=quiplash__pb2.User.SerializeToString,
                 response_deserializer=quiplash__pb2.RequestReply.FromString,
                 )
-        self.AskQuestion = channel.unary_unary(
-                '/chatapp.Quiplash/AskQuestion',
-                request_serializer=quiplash__pb2.Question.SerializeToString,
+        self.SendQuestions = channel.unary_unary(
+                '/chatapp.Quiplash/SendQuestions',
+                request_serializer=quiplash__pb2.QuestionList.SerializeToString,
                 response_deserializer=quiplash__pb2.RequestReply.FromString,
                 )
         self.NotifyPlayers = channel.unary_unary(
@@ -43,7 +43,7 @@ class QuiplashServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def AskQuestion(self, request, context):
+    def SendQuestions(self, request, context):
         """Request from primary server 
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -65,9 +65,9 @@ def add_QuiplashServicer_to_server(servicer, server):
                     request_deserializer=quiplash__pb2.User.FromString,
                     response_serializer=quiplash__pb2.RequestReply.SerializeToString,
             ),
-            'AskQuestion': grpc.unary_unary_rpc_method_handler(
-                    servicer.AskQuestion,
-                    request_deserializer=quiplash__pb2.Question.FromString,
+            'SendQuestions': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendQuestions,
+                    request_deserializer=quiplash__pb2.QuestionList.FromString,
                     response_serializer=quiplash__pb2.RequestReply.SerializeToString,
             ),
             'NotifyPlayers': grpc.unary_unary_rpc_method_handler(
@@ -104,7 +104,7 @@ class Quiplash(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def AskQuestion(request,
+    def SendQuestions(request,
             target,
             options=(),
             channel_credentials=None,
@@ -114,8 +114,8 @@ class Quiplash(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/chatapp.Quiplash/AskQuestion',
-            quiplash__pb2.Question.SerializeToString,
+        return grpc.experimental.unary_unary(request, target, '/chatapp.Quiplash/SendQuestions',
+            quiplash__pb2.QuestionList.SerializeToString,
             quiplash__pb2.RequestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

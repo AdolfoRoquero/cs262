@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0equiplash.proto\x12\x07\x63hatapp\x1a\x1fgoogle/protobuf/timestamp.proto\"\x80\x01\n\x0cRequestReply\x12\x12\n\x05reply\x18\x01 \x01(\tH\x00\x88\x01\x01\x12.\n\x0erequest_status\x18\x02 \x01(\x0e\x32\x16.chatapp.RequestStatus\x12\x15\n\x08rerouted\x18\x03 \x01(\tH\x01\x88\x01\x01\x42\x08\n\x06_replyB\x0b\n\t_rerouted\",\n\x04User\x12\x10\n\x08username\x18\x01 \x01(\t\x12\x12\n\nip_address\x18\x02 \x01(\t\"E\n\x08Question\x12\x13\n\x0bquestion_id\x18\x01 \x01(\t\x12\x15\n\rquestion_text\x18\x02 \x01(\t\x12\r\n\x05topic\x18\x03 \x01(\t\"h\n\x06\x41nswer\x12\x11\n\tanswer_id\x18\x01 \x01(\t\x12!\n\nrespondent\x18\x02 \x01(\x0b\x32\r.chatapp.User\x12\x13\n\x0b\x61nswer_text\x18\x03 \x01(\t\x12\x13\n\x0bquestion_id\x18\x04 \x01(\t\"L\n\x04Vote\x12\x1c\n\x05voter\x18\x01 \x01(\x0b\x32\r.chatapp.User\x12\x13\n\x0bquestion_id\x18\x02 \x01(\t\x12\x11\n\tanswer_id\x18\x03 \x01(\t\"\x94\x01\n\x10GameNotification\x12\x38\n\x04type\x18\x01 \x01(\x0e\x32*.chatapp.GameNotification.NotificationType\x12\x0c\n\x04text\x18\x02 \x01(\t\"8\n\x10NotificationType\x12\x0e\n\nGAME_START\x10\x00\x12\x14\n\x10QUESTION_TIMEOUT\x10\x01\"\x11\n\x0fLivenessRequest\"\"\n\x10LivenessResponse\x12\x0e\n\x06status\x18\x01 \x01(\t*6\n\rRequestStatus\x12\x0b\n\x07SUCCESS\x10\x00\x12\n\n\x06\x46\x41ILED\x10\x01\x12\x0c\n\x08REROUTED\x10\x02\x32\xb8\x01\n\x08Quiplash\x12\x30\n\x08JoinGame\x12\r.chatapp.User\x1a\x15.chatapp.RequestReply\x12\x37\n\x0b\x41skQuestion\x12\x11.chatapp.Question\x1a\x15.chatapp.RequestReply\x12\x41\n\rNotifyPlayers\x12\x19.chatapp.GameNotification\x1a\x15.chatapp.RequestReplyB0\n\x18io.grpc.examples.chatAPPB\x0c\x43hatAppProtoP\x01\xa2\x02\x03\x43\x41Pb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0equiplash.proto\x12\x07\x63hatapp\x1a\x1fgoogle/protobuf/timestamp.proto\"\x80\x01\n\x0cRequestReply\x12\x12\n\x05reply\x18\x01 \x01(\tH\x00\x88\x01\x01\x12.\n\x0erequest_status\x18\x02 \x01(\x0e\x32\x16.chatapp.RequestStatus\x12\x15\n\x08rerouted\x18\x03 \x01(\tH\x01\x88\x01\x01\x42\x08\n\x06_replyB\x0b\n\t_rerouted\",\n\x04User\x12\x10\n\x08username\x18\x01 \x01(\t\x12\x12\n\nip_address\x18\x02 \x01(\t\"E\n\x08Question\x12\x13\n\x0bquestion_id\x18\x01 \x01(\t\x12\x15\n\rquestion_text\x18\x02 \x01(\t\x12\r\n\x05topic\x18\x03 \x01(\t\"8\n\x0cQuestionList\x12(\n\rquestion_list\x18\x01 \x03(\x0b\x32\x11.chatapp.Question\"h\n\x06\x41nswer\x12\x11\n\tanswer_id\x18\x01 \x01(\t\x12!\n\nrespondent\x18\x02 \x01(\x0b\x32\r.chatapp.User\x12\x13\n\x0b\x61nswer_text\x18\x03 \x01(\t\x12\x13\n\x0bquestion_id\x18\x04 \x01(\t\"L\n\x04Vote\x12\x1c\n\x05voter\x18\x01 \x01(\x0b\x32\r.chatapp.User\x12\x13\n\x0bquestion_id\x18\x02 \x01(\t\x12\x11\n\tanswer_id\x18\x03 \x01(\t\"\x94\x01\n\x10GameNotification\x12\x38\n\x04type\x18\x01 \x01(\x0e\x32*.chatapp.GameNotification.NotificationType\x12\x0c\n\x04text\x18\x02 \x01(\t\"8\n\x10NotificationType\x12\x0e\n\nGAME_START\x10\x00\x12\x14\n\x10QUESTION_TIMEOUT\x10\x01\"\x11\n\x0fLivenessRequest\"\"\n\x10LivenessResponse\x12\x0e\n\x06status\x18\x01 \x01(\t*6\n\rRequestStatus\x12\x0b\n\x07SUCCESS\x10\x00\x12\n\n\x06\x46\x41ILED\x10\x01\x12\x0c\n\x08REROUTED\x10\x02\x32\xbe\x01\n\x08Quiplash\x12\x30\n\x08JoinGame\x12\r.chatapp.User\x1a\x15.chatapp.RequestReply\x12=\n\rSendQuestions\x12\x15.chatapp.QuestionList\x1a\x15.chatapp.RequestReply\x12\x41\n\rNotifyPlayers\x12\x19.chatapp.GameNotification\x1a\x15.chatapp.RequestReplyB0\n\x18io.grpc.examples.chatAPPB\x0c\x43hatAppProtoP\x01\xa2\x02\x03\x43\x41Pb\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'quiplash_pb2', globals())
@@ -22,26 +22,28 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   DESCRIPTOR._serialized_options = b'\n\030io.grpc.examples.chatAPPB\014ChatAppProtoP\001\242\002\003CAP'
-  _REQUESTSTATUS._serialized_start=698
-  _REQUESTSTATUS._serialized_end=752
+  _REQUESTSTATUS._serialized_start=756
+  _REQUESTSTATUS._serialized_end=810
   _REQUESTREPLY._serialized_start=61
   _REQUESTREPLY._serialized_end=189
   _USER._serialized_start=191
   _USER._serialized_end=235
   _QUESTION._serialized_start=237
   _QUESTION._serialized_end=306
-  _ANSWER._serialized_start=308
-  _ANSWER._serialized_end=412
-  _VOTE._serialized_start=414
-  _VOTE._serialized_end=490
-  _GAMENOTIFICATION._serialized_start=493
-  _GAMENOTIFICATION._serialized_end=641
-  _GAMENOTIFICATION_NOTIFICATIONTYPE._serialized_start=585
-  _GAMENOTIFICATION_NOTIFICATIONTYPE._serialized_end=641
-  _LIVENESSREQUEST._serialized_start=643
-  _LIVENESSREQUEST._serialized_end=660
-  _LIVENESSRESPONSE._serialized_start=662
-  _LIVENESSRESPONSE._serialized_end=696
-  _QUIPLASH._serialized_start=755
-  _QUIPLASH._serialized_end=939
+  _QUESTIONLIST._serialized_start=308
+  _QUESTIONLIST._serialized_end=364
+  _ANSWER._serialized_start=366
+  _ANSWER._serialized_end=470
+  _VOTE._serialized_start=472
+  _VOTE._serialized_end=548
+  _GAMENOTIFICATION._serialized_start=551
+  _GAMENOTIFICATION._serialized_end=699
+  _GAMENOTIFICATION_NOTIFICATIONTYPE._serialized_start=643
+  _GAMENOTIFICATION_NOTIFICATIONTYPE._serialized_end=699
+  _LIVENESSREQUEST._serialized_start=701
+  _LIVENESSREQUEST._serialized_end=718
+  _LIVENESSRESPONSE._serialized_start=720
+  _LIVENESSRESPONSE._serialized_end=754
+  _QUIPLASH._serialized_start=813
+  _QUIPLASH._serialized_end=1003
 # @@protoc_insertion_point(module_scope)

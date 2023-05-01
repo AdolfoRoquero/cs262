@@ -1,8 +1,9 @@
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
+from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from typing import ClassVar as _ClassVar, Mapping as _Mapping, Optional as _Optional, Union as _Union
+from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 FAILED: RequestStatus
@@ -52,6 +53,12 @@ class Question(_message.Message):
     question_text: str
     topic: str
     def __init__(self, question_id: _Optional[str] = ..., question_text: _Optional[str] = ..., topic: _Optional[str] = ...) -> None: ...
+
+class QuestionList(_message.Message):
+    __slots__ = ["question_list"]
+    QUESTION_LIST_FIELD_NUMBER: _ClassVar[int]
+    question_list: _containers.RepeatedCompositeFieldContainer[Question]
+    def __init__(self, question_list: _Optional[_Iterable[_Union[Question, _Mapping]]] = ...) -> None: ...
 
 class RequestReply(_message.Message):
     __slots__ = ["reply", "request_status", "rerouted"]

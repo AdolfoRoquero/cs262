@@ -133,3 +133,5 @@ dmypy.json
 .DS_Store
 client_env/
 design_exercise_1_submission*
+
+game_state_*.db
