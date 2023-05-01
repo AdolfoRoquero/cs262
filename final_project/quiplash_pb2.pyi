@@ -11,16 +11,14 @@ REROUTED: RequestStatus
 SUCCESS: RequestStatus
 
 class Answer(_message.Message):
-    __slots__ = ["answer_id", "answer_text", "question_id", "respondent"]
-    ANSWER_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ["answer_text", "question_id", "respondent"]
     ANSWER_TEXT_FIELD_NUMBER: _ClassVar[int]
     QUESTION_ID_FIELD_NUMBER: _ClassVar[int]
     RESPONDENT_FIELD_NUMBER: _ClassVar[int]
-    answer_id: str
     answer_text: str
     question_id: str
     respondent: User
-    def __init__(self, answer_id: _Optional[str] = ..., respondent: _Optional[_Union[User, _Mapping]] = ..., answer_text: _Optional[str] = ..., question_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, respondent: _Optional[_Union[User, _Mapping]] = ..., answer_text: _Optional[str] = ..., question_id: _Optional[str] = ...) -> None: ...
 
 class GameNotification(_message.Message):
     __slots__ = ["text", "type"]
@@ -30,6 +28,7 @@ class GameNotification(_message.Message):
     QUESTION_TIMEOUT: GameNotification.NotificationType
     TEXT_FIELD_NUMBER: _ClassVar[int]
     TYPE_FIELD_NUMBER: _ClassVar[int]
+    VOTING_START: GameNotification.NotificationType
     text: str
     type: GameNotification.NotificationType
     def __init__(self, type: _Optional[_Union[GameNotification.NotificationType, str]] = ..., text: _Optional[str] = ...) -> None: ...
@@ -71,12 +70,14 @@ class RequestReply(_message.Message):
     def __init__(self, reply: _Optional[str] = ..., request_status: _Optional[_Union[RequestStatus, str]] = ..., rerouted: _Optional[str] = ...) -> None: ...
 
 class User(_message.Message):
-    __slots__ = ["ip_address", "username"]
+    __slots__ = ["ip_address", "port", "username"]
     IP_ADDRESS_FIELD_NUMBER: _ClassVar[int]
+    PORT_FIELD_NUMBER: _ClassVar[int]
     USERNAME_FIELD_NUMBER: _ClassVar[int]
     ip_address: str
+    port: str
     username: str
-    def __init__(self, username: _Optional[str] = ..., ip_address: _Optional[str] = ...) -> None: ...
+    def __init__(self, username: _Optional[str] = ..., ip_address: _Optional[str] = ..., port: _Optional[str] = ...) -> None: ...
 
 class Vote(_message.Message):
     __slots__ = ["answer_id", "question_id", "voter"]
