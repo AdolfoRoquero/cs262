@@ -92,11 +92,11 @@ class QuiplashServicer(object):
 
 def serve(server_id, primary_ip):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-
     quiplash_pb2_grpc.add_QuiplashServicer_to_server(QuiplashServicer(server_id, primary_ip), server)
-    HOST = primary_ip
+    
+    IP = socket.gethostbyname(socket.gethostname())
     PORT = os.environ['QUIPLASH_SERVER_PORT']
-    server.add_insecure_port(f'{HOST}:{PORT}')
+    server.add_insecure_port(f'{IP}:{PORT}')
     server.start()
     server.wait_for_termination()
 
@@ -104,7 +104,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     servers = [1, 2, 3, 4, 5, 6, 7, 8]
     parser.add_argument("--server", "-s", help="Server id", type=int, choices=servers, default=0)
-    parser.add_argument("-I", "--primary_ip", help="IP address of primary server", default=socket.gethostbyname(socket.gethostname()))
+    parser.add_argument("-I", "--primary_ip", help="IP address of primary server")
     args = parser.parse_args()
 
     serve(args.server, args.primary_ip) 
