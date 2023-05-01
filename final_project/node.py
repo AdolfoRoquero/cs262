@@ -11,6 +11,7 @@ import argparse
 import socket
 import threading
 from client import client_handle
+import numpy as np 
 
 
 class QuiplashServicer(object):
@@ -22,7 +23,9 @@ class QuiplashServicer(object):
         self.primary_ip = primary_ip
         self.server_id = server_id; # testing purposes only; 
         self.stubs = {} 
+        self.game_started = False
         self._initialize_storage(); 
+        self.num_players = 0
 
         # if not primary, create stub to primary ip address
         if not self.is_primary: 
@@ -56,6 +59,8 @@ class QuiplashServicer(object):
         """Server notification 
         """
         print(request.text)
+        if request.type == quiplash_pb2.GameNotification.GAME_START: 
+            self.game_started = True 
         return quiplash_pb2.RequestReply(reply='Success', 
                                         request_status=quiplash_pb2.SUCCESS) 
 
@@ -93,7 +98,8 @@ class QuiplashServicer(object):
     
     def add_new_player(self, username, ip_address): 
         # add username to database 
-        self.db.dadd("assignment", (username, {"ip": ip_address}))
+        self.db.dadd("assignment", (username, {"ip": ip_address, "questions": {}}))
+        self.num_players += 1 
         print(f'New player joined {username}, {len(self._get_players())} players in the room')
 
     def create_stub(self, node_ip_address): 
@@ -103,6 +109,31 @@ class QuiplashServicer(object):
             channel = grpc.insecure_channel(f"{node_ip_address}:{os.environ['QUIPLASH_SERVER_PORT']}")
             self.stubs[node_ip_address] = quiplash_pb2_grpc.QuiplashStub(channel)
             #print(f'Created stub to {node_ip_address}')
+    def start_game(self, mode='all'):
+        self.game_started = True 
+        questions = self.db.get('question_prompt')
+        if mode == 'all': 
+            question_ids = list(questions.keys())
+        elif mode in ['random', 'system']:
+            question_ids = [question_id for question_id in questions if questions[question_id]['category'] == mode]
+            pass
+        else:
+            pass
+        questions_to_assign = np.random.choice(question_ids, self.num_players)
+        np.random.shuffle(questions_to_assign) 
+        questions_to_assign = list(questions_to_assign)
+        print(type(questions_to_assign))
+
+        questions_to_assign = questions_to_assign + [questions_to_assign[self.num_players-1]] + questions_to_assign[:self.num_players-1]
+        print(questions_to_assign)
+        for idx, player in enumerate(self._get_players()):
+            temp = self.db.get("assignment")
+            temp[player]["questions"][questions_to_assign[idx]] = {"answer": "No answer", "vote_count":0}
+            temp[player]["questions"][questions_to_assign[idx + self.num_players]] = {"answer": "No answer", "vote_count":0}
+            self.db.set("assignment", temp)
+           
+
+
 
     
 

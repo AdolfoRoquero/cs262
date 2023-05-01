@@ -10,6 +10,7 @@ import os
 import argparse
 import socket
 import threading
+import time 
 
 def client_handle(instance): 
         # JoinGame routine 
@@ -23,6 +24,12 @@ def client_handle(instance):
                 else:
                     break
             print(f"Successfully joined game, username {username}")
+
+            while not instance.game_started: 
+                time.sleep(0.5)
+                continue 
+            while instance.game_started: 
+                continue 
         else: 
             while True: 
                 username = input("Enter username: ").strip().lower()
@@ -41,7 +48,6 @@ def client_handle(instance):
 
             # notifies other players game will begin 
             for ip, stub in instance.stubs.items(): 
-                print(ip)
                 notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START, text=game_start_text)
                 reply = stub.NotifyPlayers(notification)
 
