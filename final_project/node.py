@@ -9,6 +9,8 @@ import pickledb
 import os 
 import argparse
 import socket
+import threading
+from client import client_handle
 
 
 class QuiplashServicer(object):
@@ -25,16 +27,12 @@ class QuiplashServicer(object):
         # if not primary, create stub to primary ip address
         if not self.is_primary: 
             self.create_stub(self.primary_ip)
-            user = quiplash_pb2.User(username='Dodo', ip_address=self.ip)
-            reply = self.stubs[self.primary_ip].JoinGame(user) 
         else: 
             print(f'Primary server running with IP: {self.primary_ip}')
 
     def JoinGame(self, request, context):
         """Request to enter as a User into a game 
         """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
         username = request.username 
         if username in self._get_players(): 
             print(f"Error: User {username} has already joined")
@@ -99,13 +97,22 @@ class QuiplashServicer(object):
 
 def serve(server_id, primary_ip):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    quiplash_pb2_grpc.add_QuiplashServicer_to_server(QuiplashServicer(server_id, primary_ip), server)
+    quiplash_servicer = QuiplashServicer(server_id, primary_ip)
+    quiplash_pb2_grpc.add_QuiplashServicer_to_server(quiplash_servicer, server)
     
     IP = socket.gethostbyname(socket.gethostname())
     PORT = os.environ['QUIPLASH_SERVER_PORT']
     server.add_insecure_port(f'{IP}:{PORT}')
     server.start()
+
+    # Start the client thread that takes terminal input with gRPC channel and stub
+    client_thread = threading.Thread(target=client_handle, args=(quiplash_servicer,))
+    client_thread.start()
+
+
     server.wait_for_termination()
+
+
 
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser()
