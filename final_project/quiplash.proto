@@ -29,8 +29,11 @@ service Quiplash {
   // Request to enter as a User into a game 
   rpc JoinGame(User) returns (RequestReply); 
 
-  // Request from primary server 
+  // Request from primary node to other node with questions to answer 
   rpc SendQuestions(QuestionList) returns (RequestReply); 
+
+  // Request from other nodes to primary node with answer to question 
+  rpc SendAnswer(Answer) returns (RequestReply); 
 
   // Server notification 
   rpc NotifyPlayers(GameNotification) returns (RequestReply);
@@ -91,7 +94,8 @@ message RequestReply {
 // Represents the User object (only username in this case)
 message User {
     string username = 1; // Username (uniquely identifies user);
-    string ip_address = 2; // IP address of the user; 
+    optional string ip_address = 2; // IP address of the user; 
+    optional string port = 3; // Port address of the user; 
 }
 
 
@@ -106,10 +110,9 @@ message QuestionList {
 }
 
 message Answer {
-    string answer_id = 1; // Unique identifier for this answer 
-    User respondent = 2; // Identifies which user answered the question 
-    string answer_text = 3; // User's answer to the question 
-    string question_id = 4; // Identifies the question answered 
+    User respondent = 1; // Identifies which user answered the question 
+    string answer_text = 2; // User's answer to the question 
+    string question_id = 3; // Identifies the question answered 
 }
 
 message Vote {
@@ -121,10 +124,11 @@ message Vote {
 message GameNotification {
     enum NotificationType {
                 GAME_START = 0;
-                QUESTION_TIMEOUT = 1; 
+                VOTING_START = 1;
+                QUESTION_TIMEOUT = 2; 
             }
     NotificationType type = 1; 
-    string text = 2; // String with game message for users 
+    optional string text = 2; // String with game message for users 
 }
 
 // message LivenessRequest 

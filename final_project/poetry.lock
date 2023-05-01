@@ -22,6 +22,14 @@ grpcio = ">=1.54.0"
 protobuf = ">=4.21.6,<5.0dev"
 
 [[package]]
+name = "inputimeout"
+version = "1.0.4"
+description = "Multi platform standard input with timeout"
+category = "main"
+optional = false
+python-versions = ">=3.4"
+
+[[package]]
 name = "numpy"
 version = "1.24.3"
 description = "Fundamental package for array computing in Python"
@@ -48,7 +56,7 @@ python-versions = ">=3.7"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "c9e4b1d38f43e386169381942dce0dffea7a1cdf1bf15baef1f59a3fbb5d4951"
+content-hash = "e04c25e66b5c2fa23f4b764e7cbbf70db48cdb328f59c8f62823b1610d9565cc"
 
 [metadata.files]
 grpcio = [
@@ -144,6 +152,9 @@ grpcio-tools = [
     {file = "grpcio_tools-1.54.0-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:ab45bda18b4931b08d89e490fd920bf654109d1c2e80b037fe9b60ab30fb4d9d"},
     {file = "grpcio_tools-1.54.0-cp39-cp39-win32.whl", hash = "sha256:43339122c891110e9ed020974c0fe2bd773d96c184203a62d0973f4cfb007f80"},
     {file = "grpcio_tools-1.54.0-cp39-cp39-win_amd64.whl", hash = "sha256:d58528d6ea1835c0d4c34b60152dd29b3c9ab02ad0a8e734de240d54786d8b1e"},
+]
+inputimeout = [
+    {file = "inputimeout-1.0.4-py3-none-any.whl", hash = "sha256:f4e23d27753cfc25268eefc8d52a3edc46280ad831d226617c51882423475a43"},
 ]
 numpy = [
     {file = "numpy-1.24.3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:3c1104d3c036fb81ab923f507536daedc718d0ad5a8707c6061cdfd6d184e570"},
