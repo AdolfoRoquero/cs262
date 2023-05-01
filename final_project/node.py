@@ -41,8 +41,7 @@ class QuiplashServicer(object):
         else: 
             # add stub 
             self.create_stub(request.ip_address)
-            # add username to database 
-            self.db.dadd("assignment", (request.username, {"ip": request.ip_address}))
+            self.add_new_player(request.username, request.ip_address)
             return quiplash_pb2.RequestReply(reply = 'Success', 
                                                  request_status=quiplash_pb2.SUCCESS)
 
@@ -84,6 +83,11 @@ class QuiplashServicer(object):
         Extracts list of players in db 
         """
         return self.db.get('assignment').keys()
+    
+    def add_new_player(self, username, ip_address): 
+        # add username to database 
+        self.db.dadd("assignment", (username, {"ip": ip_address}))
+        
 
     def create_stub(self, node_ip_address): 
         if node_ip_address in self.stubs.keys(): 
