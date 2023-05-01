@@ -25,6 +25,11 @@ class QuiplashStub(object):
                 request_serializer=quiplash__pb2.Question.SerializeToString,
                 response_deserializer=quiplash__pb2.RequestReply.FromString,
                 )
+        self.NotifyPlayers = channel.unary_unary(
+                '/chatapp.Quiplash/NotifyPlayers',
+                request_serializer=quiplash__pb2.GameNotification.SerializeToString,
+                response_deserializer=quiplash__pb2.RequestReply.FromString,
+                )
 
 
 class QuiplashServicer(object):
@@ -45,6 +50,13 @@ class QuiplashServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def NotifyPlayers(self, request, context):
+        """Server notification 
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_QuiplashServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -56,6 +68,11 @@ def add_QuiplashServicer_to_server(servicer, server):
             'AskQuestion': grpc.unary_unary_rpc_method_handler(
                     servicer.AskQuestion,
                     request_deserializer=quiplash__pb2.Question.FromString,
+                    response_serializer=quiplash__pb2.RequestReply.SerializeToString,
+            ),
+            'NotifyPlayers': grpc.unary_unary_rpc_method_handler(
+                    servicer.NotifyPlayers,
+                    request_deserializer=quiplash__pb2.GameNotification.FromString,
                     response_serializer=quiplash__pb2.RequestReply.SerializeToString,
             ),
     }
@@ -99,6 +116,23 @@ class Quiplash(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/chatapp.Quiplash/AskQuestion',
             quiplash__pb2.Question.SerializeToString,
+            quiplash__pb2.RequestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def NotifyPlayers(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatapp.Quiplash/NotifyPlayers',
+            quiplash__pb2.GameNotification.SerializeToString,
             quiplash__pb2.RequestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

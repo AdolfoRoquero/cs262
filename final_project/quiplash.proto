@@ -32,6 +32,9 @@ service Quiplash {
   // Request from primary server 
   rpc AskQuestion(Question) returns (RequestReply); 
 
+  // Server notification 
+  rpc NotifyPlayers(GameNotification) returns (RequestReply);
+
 
 //   // Request to list all users in the platform 
 //   // that match a given filter in ListAllRequest.
@@ -110,6 +113,14 @@ message Vote {
     string answer_id = 3; // Identifies the answer the voter voted for; 
 }
 
+message GameNotification {
+    enum NotificationType {
+                GAME_START = 0;
+                QUESTION_TIMEOUT = 1; 
+            }
+    NotificationType type = 1; 
+    string text = 2; // String with game message for users 
+}
 
 // message LivenessRequest 
 // Represents the message sent from one server to the others in order to check for liveness.

@@ -21,6 +21,18 @@ class Answer(_message.Message):
     respondent: User
     def __init__(self, answer_id: _Optional[str] = ..., respondent: _Optional[_Union[User, _Mapping]] = ..., answer_text: _Optional[str] = ..., question_id: _Optional[str] = ...) -> None: ...
 
+class GameNotification(_message.Message):
+    __slots__ = ["text", "type"]
+    class NotificationType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = []
+    GAME_START: GameNotification.NotificationType
+    QUESTION_TIMEOUT: GameNotification.NotificationType
+    TEXT_FIELD_NUMBER: _ClassVar[int]
+    TYPE_FIELD_NUMBER: _ClassVar[int]
+    text: str
+    type: GameNotification.NotificationType
+    def __init__(self, type: _Optional[_Union[GameNotification.NotificationType, str]] = ..., text: _Optional[str] = ...) -> None: ...
+
 class LivenessRequest(_message.Message):
     __slots__ = []
     def __init__(self) -> None: ...

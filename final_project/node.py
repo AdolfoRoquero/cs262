@@ -52,6 +52,11 @@ class QuiplashServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def NotifyPlayers(self, request, context):
+        """Server notification 
+        """
+        print(request.text)
+
     def _initialize_storage(self, dir=os.getcwd()):
         """
         Helper function to initialize disk storage files.

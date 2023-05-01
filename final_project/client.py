@@ -31,11 +31,21 @@ def client_handle(instance):
                 else: 
                     instance.add_new_player(username, instance.ip)
                     break 
+            print("\n Once all players have joined the room, press enter to start game \n")
             while True: 
-                start_game = input("Press enter to start game")
+                start_game = input("")
                 if start_game == '': 
                     break 
-            
-            print("Starting the game. Ready... Set.... QUIPLASH")
+            game_start_text = "Starting the game. Ready... Set.... QUIPLASH"
+            print(f"\n {game_start_text} \n")
+
+            # notifies other players game will begin 
+            for stub in instance.stubs: 
+                reply = stub.NotifyPlayers(quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START, text=game_start_text))
+                
+            # starts the game 
+            instance.start_game()
+
+
 
         
