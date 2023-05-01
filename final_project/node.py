@@ -49,7 +49,7 @@ class QuiplashServicer(object):
             return quiplash_pb2.RequestReply(reply = 'Success', 
                                                  request_status=quiplash_pb2.SUCCESS)
 
-    def AskQuestion(self, request, context):
+    def SendQuestions(self, request, context):
         """Request from primary server 
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
