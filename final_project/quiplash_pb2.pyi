@@ -20,6 +20,12 @@ class Answer(_message.Message):
     respondent: User
     def __init__(self, respondent: _Optional[_Union[User, _Mapping]] = ..., answer_text: _Optional[str] = ..., question_id: _Optional[str] = ...) -> None: ...
 
+class AnswerList(_message.Message):
+    __slots__ = ["answer_list"]
+    ANSWER_LIST_FIELD_NUMBER: _ClassVar[int]
+    answer_list: _containers.RepeatedCompositeFieldContainer[Answer]
+    def __init__(self, answer_list: _Optional[_Iterable[_Union[Answer, _Mapping]]] = ...) -> None: ...
+
 class GameNotification(_message.Message):
     __slots__ = ["text", "type"]
     class NotificationType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):

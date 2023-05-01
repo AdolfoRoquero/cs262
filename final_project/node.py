@@ -18,6 +18,7 @@ from inputimeout import inputimeout
 
 TIME_TO_ANSWER = 10
 EMPTY_ANS_DEFAULT = "NA"
+TIMEOUT_TO_RECEIVE_ANS = 25
 
 
 def dictToGRPCQuestion(question_dict, question_id):
@@ -40,7 +41,6 @@ class QuiplashServicer(object):
         self.primary_ip = primary_ip
         self.primary_port = os.environ['QUIPLASH_SERVER_PORT']
         self.primary_address = f"{self.primary_ip}:{self.primary_port}"
-
         
         self.is_primary = (self.ip == self.primary_ip) and (self.port == self.primary_port)
         print(f"Initialize server {server_id} ({'PRIMARY' if self.is_primary else 'NOT PRIMARY'}) at {self.address}")
@@ -52,16 +52,16 @@ class QuiplashServicer(object):
 
 
         self.voting_started = False 
-
+        self.voting_started_cv = threading.Condition()
 
         self._initialize_storage()
-        self.num_players = 0
-
         # if not primary, create stub to primary ip address
         if not self.is_primary: 
             self.create_stub(self.primary_ip, self.primary_port)
 
+        self.num_players = 0
         self.unanswered_questions = []
+        self.answers = []
         
     def JoinGame(self, request, context):
         """Request to enter as a User into a game 
@@ -80,6 +80,8 @@ class QuiplashServicer(object):
     def SendQuestions(self, request, context):
         """Request from primary server 
         """
+        print(f"Received question at {self.address}")
+        print(request.question_list)
         for question in request.question_list:
             question_prompt = self.db.dget("question_prompt", question.question_id)
             question_prompt['question_id'] = question.question_id
@@ -96,7 +98,9 @@ class QuiplashServicer(object):
         # Check if ready to move to voting phase:
         pend_players = self._get_players_pending_ans()
         if len(pend_players) == 0:
-            self.voting_started = True
+            with self.voting_started_cv:
+                self.voting_started = True
+                self.voting_started_cv.notify_all()
         else:
             print(f"Still Waiting for players {pend_players}\n")
 
@@ -107,13 +111,30 @@ class QuiplashServicer(object):
     def NotifyPlayers(self, request, context):
         """Server notification 
         """
+        print(f"Player {self.username} has been notified ")
         if request.type == quiplash_pb2.GameNotification.GAME_START: 
-            self.game_started = True 
-            self.game_started_cv.notify()  
+            with self.game_started_cv:
+                self.game_started = True 
+                self.game_started_cv.notify_all()  
 
         if request.type == quiplash_pb2.GameNotification.VOTING_START: 
-            self.voting_started = True 
+            with self.voting_started_cv:
+                self.voting_started = True 
+                self.voting_started_cv.notify_all()
         
+        return quiplash_pb2.RequestReply(reply='Success', 
+                                         request_status=quiplash_pb2.SUCCESS) 
+    
+    def SendAllAnswers(self, request, context):
+        """Request from PRIMARY node to OTHER-NODES with all answers to all questions for voting.
+        """
+        print(f"Receiving all {len(request.answer_list)} at user {self.username}")
+    
+        for answer in request.answer_list:
+            self.answers.append({'user': answer.respondent.username, 
+                                 'answer': answer.answer_text, 
+                                 'question_id': answer.question_id})
+
         return quiplash_pb2.RequestReply(reply='Success', 
                                          request_status=quiplash_pb2.SUCCESS) 
 
@@ -160,6 +181,40 @@ class QuiplashServicer(object):
                     pending_users.add(user)
         return pending_users
     
+    def _get_answers_as_grpc(self):
+        """
+        Extracts all answers to all questions from db and 
+        compiles them into an AnswersList Object
+        """
+        answer_list = [] 
+        assignments = self.db.get("assignment")
+        for user in assignments:
+            for question_id in assignments[user]['questions']:
+                respondent = quiplash_pb2.User(username=self.username)
+                grpc_answer = quiplash_pb2.Answer(
+                    respondent=respondent,
+                    answer_text=assignments[user]['questions'][question_id]['answer'],
+                    question_id=question_id)
+                
+                answer_list.append(grpc_answer)
+        return quiplash_pb2.AnswerList(answer_list=answer_list)
+    
+    def _get_questions_as_grpc_list(self, question_ids):
+        """
+        Extracts all answers to all questions from db and 
+        compiles them into an AnswersList Object
+        """
+        question_list = [] 
+        for question_id in question_ids:
+            question_dict = self.db.dget('question_prompt', question_id)
+            grpc_question = quiplash_pb2.Question(question_id=question_id, 
+                                                  question_text=question_dict['question'],
+                                                  topic=question_dict['category'])
+            question_list.append(grpc_question)
+        return quiplash_pb2.QuestionList(question_list=question_list)
+
+
+    
     def add_new_player(self, username, ip_address, port): 
         # add username to database 
         self.db.dadd("assignment", (username, {"ip": ip_address, "port": port, "questions": {}}))
@@ -196,10 +251,9 @@ class QuiplashServicer(object):
         questions_to_assign = np.random.choice(question_ids, self.num_players, replace=False)
         np.random.shuffle(questions_to_assign) 
         questions_to_assign = list(questions_to_assign)
-
         questions_to_assign = questions_to_assign + [questions_to_assign[self.num_players-1]] + questions_to_assign[:self.num_players-1]
-        assigned_questions = {}
         
+        assigned_questions = {}
         for idx, player in enumerate(self._get_players()):
             assert questions_to_assign[idx] != questions_to_assign[idx+self.num_players], f"Player {player} is getting the same question ({questions_to_assign[idx]}) twice {questions_to_assign}"
             player_info = self.db.dget('assignment', player)
@@ -235,11 +289,11 @@ class QuiplashServicer(object):
                         break
 
             # Wait until game phase starts
-            while not self.game_started: 
-                self.game_started_cv.wait()
+            with self.game_started_cv:
+                while not self.game_started:
+                    self.game_started_cv.wait() 
 
             print("Time to answer questions!!")
-
             for idx, question in enumerate(self.unanswered_questions):
                 print(f"\n\nQuestion {idx+1}/{len(self.unanswered_questions)}    Topic: {question['category']}")
                 print(f"{question['question']}\n")
@@ -261,13 +315,12 @@ class QuiplashServicer(object):
                                                       answer_text=answer_text, 
                                                       question_id=question['question_id']) 
                     reply = self.stubs[self.primary_address].SendAnswer(grpc_answer)
-
-            while not self.voting_started: 
-                time.sleep(0.5)
-                continue
+            
+            # Wait until voting phase starts (Queue is given by Notification from Server)
+            with self.voting_started_cv:
+                while not self.voting_started:
+                    self.voting_started_cv.wait() 
             print("\n\n\nLet's Vote for funniest answer\n\n\n")
-
-
 
  
         else: 
@@ -286,43 +339,49 @@ class QuiplashServicer(object):
                 start_game = input("")
                 if start_game == '': 
                     break 
+            # 
+            # Send Questions to players
+            # 
+            assigned_questions = self.assign_questions()
+            for address, stub in self.stubs.items(): 
+                print(f"Sending questions to {address}")
+                player_questions = assigned_questions[address]
+                grpc_question_list = self._get_questions_as_grpc_list(player_questions)
+                reply = stub.SendQuestions(grpc_question_list)
+
             game_start_text = "Starting the game. Ready... Set.... QUIPLASH"
             print(f"\n {game_start_text} \n")
 
             self.game_started = True 
-
             # notifies other players game will begin 
             for ip, stub in self.stubs.items(): 
                 notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START, text=game_start_text)
                 reply = stub.NotifyPlayers(notification)
-
-            assigned_questions = self.assign_questions()
-
-            for address, stub in self.stubs.items(): 
-                player_questions = assigned_questions[address]
-                grpc_question_list = []
-                for question_id in player_questions:
-                    question = self.db.dget('question_prompt', question_id)
-                    grpc_question = dictToGRPCQuestion(question, question_id)
-                    grpc_question_list.append(grpc_question)
-                reply = stub.SendQuestions(quiplash_pb2.QuestionList(question_list=grpc_question_list))
             
 
-            # Wait until voting started flag is set to True
-            # This flag is set to True once all answers have been received or the has been a timeout
-            if self.voting_started:
-                # notifies other players voting phase begins
-                for ip, stub in self.stubs.items():
-                    print(f"Notify Voting to {ip}") 
-                    notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
-                    reply = stub.NotifyPlayers(notification)
+            # Wait until voting started flag is set to True if all answers have been received or it timed out
+            with self.voting_started_cv:
+                while not self.voting_started:
+                    self.voting_started_cv.wait(timeout=TIMEOUT_TO_RECEIVE_ANS)
+                    self.voting_started = True
+                    print("TIMEOUT_OCUURRED")
 
-            
-
-    
-            
-        
-           
+            # 
+            # Send Answers from players to players
+            #            
+            grpc_answers = self._get_answers_as_grpc()
+            for ip, stub in self.stubs.items():
+                print(f"Send Answers to {ip}")
+                stub.SendAllAnswers(grpc_answers)
+            #
+            # Notifies other players voting phase begins
+            # 
+            for ip, stub in self.stubs.items():
+                print(f"Notify Voting to {ip}") 
+                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
+                reply = stub.NotifyPlayers(notification)
+     
+     
 
 def serve(server_id, port, primary_ip):
     
