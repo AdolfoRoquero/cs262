@@ -56,6 +56,8 @@ class QuiplashServicer(object):
         """Server notification 
         """
         print(request.text)
+        return quiplash_pb2.RequestReply(reply='Success', 
+                                        request_status=quiplash_pb2.SUCCESS) 
 
     def _initialize_storage(self, dir=os.getcwd()):
         """

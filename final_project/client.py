@@ -40,9 +40,11 @@ def client_handle(instance):
             print(f"\n {game_start_text} \n")
 
             # notifies other players game will begin 
-            for stub in instance.stubs: 
-                reply = stub.NotifyPlayers(quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START, text=game_start_text))
-                
+            for ip, stub in instance.stubs.items(): 
+                print(ip)
+                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START, text=game_start_text)
+                reply = stub.NotifyPlayers(notification)
+
             # starts the game 
             instance.start_game()
 
