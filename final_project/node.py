@@ -20,6 +20,10 @@ class QuiplashServicer(object):
         self.server_id = server_id; # testing purposes only; 
         self._initialize_storage(); 
 
+        # if not primary, create stub to primary ip address
+        if not self.is_primary: 
+            self.create_stub(self.primary_ip)
+
     def JoinGame(self, request, context):
         """Request to enter as a User into a game 
         """
@@ -74,6 +78,14 @@ class QuiplashServicer(object):
         self.db.set('question_prompt', question_prompt_db.get('question_prompt'))
 
         self.db.set('assignment', {})
+
+    def create_stub(self, node_ip_address): 
+        if node_ip_address in self.stubs.keys(): 
+            print("Error: Stub already exists")
+        else: 
+            channel = grpc.insecure_channel(f"{node_ip_address}:{os.environ['QUIPLASH_SERVER_PORT']}")
+            self.stubs[node_ip_address] = quiplash_pb2_grpc.QuiplashStub(channel)
+            print(f'Created stub to {node_ip_address}')
 
 def serve(server_id, primary_ip):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
