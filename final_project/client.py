@@ -31,4 +31,11 @@ def client_handle(instance):
                 else: 
                     instance.add_new_player(username, instance.ip)
                     break 
+            while True: 
+                start_game = input("Press enter to start game")
+                if start_game == '': 
+                    break 
+            
+            print("Starting the game. Ready... Set.... QUIPLASH")
+
         

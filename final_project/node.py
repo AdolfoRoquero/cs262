@@ -87,7 +87,7 @@ class QuiplashServicer(object):
     def add_new_player(self, username, ip_address): 
         # add username to database 
         self.db.dadd("assignment", (username, {"ip": ip_address}))
-        
+        print(f'New player joined {username}, {len(self._get_players())} players in the room')
 
     def create_stub(self, node_ip_address): 
         if node_ip_address in self.stubs.keys(): 
@@ -95,7 +95,7 @@ class QuiplashServicer(object):
         else: 
             channel = grpc.insecure_channel(f"{node_ip_address}:{os.environ['QUIPLASH_SERVER_PORT']}")
             self.stubs[node_ip_address] = quiplash_pb2_grpc.QuiplashStub(channel)
-            print(f'Created stub to {node_ip_address}')
+            #print(f'Created stub to {node_ip_address}')
 
     
 
