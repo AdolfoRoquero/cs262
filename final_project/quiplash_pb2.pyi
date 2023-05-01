@@ -52,10 +52,12 @@ class RequestReply(_message.Message):
     def __init__(self, reply: _Optional[str] = ..., request_status: _Optional[_Union[RequestStatus, str]] = ..., rerouted: _Optional[str] = ...) -> None: ...
 
 class User(_message.Message):
-    __slots__ = ["username"]
+    __slots__ = ["ip_address", "username"]
+    IP_ADDRESS_FIELD_NUMBER: _ClassVar[int]
     USERNAME_FIELD_NUMBER: _ClassVar[int]
+    ip_address: str
     username: str
-    def __init__(self, username: _Optional[str] = ...) -> None: ...
+    def __init__(self, username: _Optional[str] = ..., ip_address: _Optional[str] = ...) -> None: ...
 
 class Vote(_message.Message):
     __slots__ = ["answer_id", "question_id", "voter"]
