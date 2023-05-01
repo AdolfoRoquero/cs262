@@ -18,11 +18,14 @@ class QuiplashServicer(object):
         self.is_primary = self.ip == primary_ip
         self.primary_ip = primary_ip
         self.server_id = server_id; # testing purposes only; 
+        self.stubs = {} 
         self._initialize_storage(); 
 
         # if not primary, create stub to primary ip address
         if not self.is_primary: 
             self.create_stub(self.primary_ip)
+        else: 
+            print(f'Primary server running with IP: {self.primary_ip}')
 
     def JoinGame(self, request, context):
         """Request to enter as a User into a game 
