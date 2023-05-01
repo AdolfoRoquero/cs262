@@ -30,7 +30,7 @@ service Quiplash {
   rpc JoinGame(User) returns (RequestReply); 
 
   // Request from primary server 
-  rpc AskQuestion(Question) returns (RequestReply); 
+  rpc SendQuestions(QuestionList) returns (RequestReply); 
 
   // Server notification 
   rpc NotifyPlayers(GameNotification) returns (RequestReply);
@@ -94,10 +94,15 @@ message User {
     string ip_address = 2; // IP address of the user; 
 }
 
+
 message Question {
     string question_id = 1; // Unique identifier for the question 
     string question_text = 2; // Question to be answered 
     string topic = 3; // Systems related or random 
+}
+
+message QuestionList {
+    repeated Question question_list= 1; // List of questions
 }
 
 message Answer {
