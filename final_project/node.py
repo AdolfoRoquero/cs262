@@ -288,144 +288,144 @@ class QuiplashServicer(object):
 
     def client_handle(self): 
         # JoinGame routine 
-        if not self.is_primary: 
-            while True: 
-                username = input("Enter username: ").strip().lower()
-                user = quiplash_pb2.User(username=username, 
-                                         ip_address=self.ip, 
-                                         port=self.port)
-                if not username:
-                    print("Error: username cannot be empty")
-                else:
-                    reply = self.stubs[self.primary_address].JoinGame(user)
-                    if reply.request_status == quiplash_pb2.FAILED:
-                        print(reply.reply)
-                    else:
-                        self.username = username
-                        print(f"Successfully joined game, username {self.username}")
-                        break
+        # if not self.is_primary: 
+        #     while True: 
+        #         username = input("Enter username: ").strip().lower()
+        #         user = quiplash_pb2.User(username=username, 
+        #                                  ip_address=self.ip, 
+        #                                  port=self.port)
+        #         if not username:
+        #             print("Error: username cannot be empty")
+        #         else:
+        #             reply = self.stubs[self.primary_address].JoinGame(user)
+        #             if reply.request_status == quiplash_pb2.FAILED:
+        #                 print(reply.reply)
+        #             else:
+        #                 self.username = username
+        #                 print(f"Successfully joined game, username {self.username}")
+        #                 break
 
-            # Wait until game phase starts
-            with self.game_started_cv:
-                while not self.game_started:
-                    self.game_started_cv.wait() 
+        #     # Wait until game phase starts
+        #     with self.game_started_cv:
+        #         while not self.game_started:
+        #             self.game_started_cv.wait() 
 
-            print("Time to answer questions!!")
-            for idx, question in enumerate(self.unanswered_questions):
-                print(f"\n\nQuestion {idx+1}/{len(self.unanswered_questions)}    Topic: {question['category']}")
-                print(f"{question['question']}\n")
-                print(f"You have {TIME_TO_ANSWER} seconds to answer!\n")
+        #     print("Time to answer questions!!")
+        #     for idx, question in enumerate(self.unanswered_questions):
+        #         print(f"\n\nQuestion {idx+1}/{len(self.unanswered_questions)}    Topic: {question['category']}")
+        #         print(f"{question['question']}\n")
+        #         print(f"You have {TIME_TO_ANSWER} seconds to answer!\n")
                 
-                answered = False
-                try:
-                    # Take timed input using inputimeout() function
-                    answer_text = inputimeout(prompt='Your Answer:\n', timeout=TIME_TO_ANSWER)
-                    answered = True
-                except Exception:
-                    """Code will enter this code regardless of timeout or not"""
-                    if not answered:
-                        print("You ran out of time! Moving to next question\n")
+        #         answered = False
+        #         try:
+        #             # Take timed input using inputimeout() function
+        #             answer_text = inputimeout(prompt='Your Answer:\n', timeout=TIME_TO_ANSWER)
+        #             answered = True
+        #         except Exception:
+        #             """Code will enter this code regardless of timeout or not"""
+        #             if not answered:
+        #                 print("You ran out of time! Moving to next question\n")
                 
-                if answered:
-                    respondent = quiplash_pb2.User(username=self.username)
-                    grpc_answer = quiplash_pb2.Answer(respondent=respondent, 
-                                                      answer_text=answer_text, 
-                                                      question_id=question['question_id']) 
-                    reply = self.stubs[self.primary_address].SendAnswer(grpc_answer)
+        #         if answered:
+        #             respondent = quiplash_pb2.User(username=self.username)
+        #             grpc_answer = quiplash_pb2.Answer(respondent=respondent, 
+        #                                               answer_text=answer_text, 
+        #                                               question_id=question['question_id']) 
+        #             reply = self.stubs[self.primary_address].SendAnswer(grpc_answer)
             
-            # Wait until voting phase starts (Queue is given by Notification from Server)
-            with self.voting_started_cv:
-                while not self.voting_started:
-                    self.voting_started_cv.wait() 
+        #     # Wait until voting phase starts (Queue is given by Notification from Server)
+        #     with self.voting_started_cv:
+        #         while not self.voting_started:
+        #             self.voting_started_cv.wait() 
 
-            print("\n\n\nLet's Vote for funniest answer\n\n\n")
-            print(self.answers_per_question)
-            for idx, question_id in enumerate(self.answers_per_question):
-                question_info = self._get_question_data(question_id)
-                print(f"Question {idx}:\n")
-                print(f"Prompt {question_info['question']}\n\n")
-                users_with_answer = []
-                for ans_idx, answer in enumerate(self.answers_per_question[question_id]):
-                    print(f"Answer {answer['user']} :{answer['answer']}")
-                    users_with_answer.append(answer['user'])
+        #     print("\n\n\nLet's Vote for funniest answer\n\n\n")
+        #     print(self.answers_per_question)
+        #     for idx, question_id in enumerate(self.answers_per_question):
+        #         question_info = self._get_question_data(question_id)
+        #         print(f"Question {idx}:\n")
+        #         print(f"Prompt {question_info['question']}\n\n")
+        #         users_with_answer = []
+        #         for ans_idx, answer in enumerate(self.answers_per_question[question_id]):
+        #             print(f"Answer {answer['user']} :{answer['answer']}")
+        #             users_with_answer.append(answer['user'])
                 
-                answered = False
-                try:
-                    # Take timed input using inputimeout() function
-                    pref_user = inputimeout(prompt='Your favorite answer is:\n', timeout=TIME_TO_ANSWER)
-                    answered = True
-                except Exception:
-                    """Code will enter this code regardless of timeout or not"""
-                    if not answered:
-                        print("You ran out of time! Moving to next question\n")
+        #         answered = False
+        #         try:
+        #             # Take timed input using inputimeout() function
+        #             pref_user = inputimeout(prompt='Your favorite answer is:\n', timeout=TIME_TO_ANSWER)
+        #             answered = True
+        #         except Exception:
+        #             """Code will enter this code regardless of timeout or not"""
+        #             if not answered:
+        #                 print("You ran out of time! Moving to next question\n")
                 
-                if answered and (pref_user in users_with_answer):
-                    voter = quiplash_pb2.User(username=self.username)
-                    votee = quiplash_pb2.User(username=pref_user)
-                    grpc_vote = quiplash_pb2.Vote(voter=respondent, 
-                                                  votee=votee,
-                                                  question_id=question_id)
-                    reply = self.stubs[self.primary_address].SendVote(grpc_vote)
+        #         if answered and (pref_user in users_with_answer):
+        #             voter = quiplash_pb2.User(username=self.username)
+        #             votee = quiplash_pb2.User(username=pref_user)
+        #             grpc_vote = quiplash_pb2.Vote(voter=respondent, 
+        #                                           votee=votee,
+        #                                           question_id=question_id)
+        #             reply = self.stubs[self.primary_address].SendVote(grpc_vote)
             
-        else: 
-            while True: 
-                username = input("Enter username: ").strip().lower()
-                if username in self._get_players(): 
-                    print("Error: username taken")
-                elif not username:
-                    print("Error: username cannot be empty")
-                else: 
-                    self.username = username
-                    self.add_new_player(self.username, self.ip, self.port)
-                    break
-            print("\n Once all players have joined the room, press enter to start game \n")
-            while True: 
-                start_game = input("")
-                if start_game == '': 
-                    break 
-            # 
-            # Send Questions to players
-            # 
-            assigned_questions = self.assign_questions()
-            for address, stub in self.stubs.items(): 
-                print(f"Sending questions to {address}")
-                player_questions = assigned_questions[address]
-                grpc_question_list = self._get_questions_as_grpc_list(player_questions)
-                reply = stub.SendQuestions(grpc_question_list)
+        # else: 
+        #     while True: 
+        #         username = input("Enter username: ").strip().lower()
+        #         if username in self._get_players(): 
+        #             print("Error: username taken")
+        #         elif not username:
+        #             print("Error: username cannot be empty")
+        #         else: 
+        #             self.username = username
+        #             self.add_new_player(self.username, self.ip, self.port)
+        #             break
+        #     print("\n Once all players have joined the room, press enter to start game \n")
+        #     while True: 
+        #         start_game = input("")
+        #         if start_game == '': 
+        #             break 
+        #     # 
+        #     # Send Questions to players
+        #     # 
+        #     assigned_questions = self.assign_questions()
+        #     for address, stub in self.stubs.items(): 
+        #         print(f"Sending questions to {address}")
+        #         player_questions = assigned_questions[address]
+        #         grpc_question_list = self._get_questions_as_grpc_list(player_questions)
+        #         reply = stub.SendQuestions(grpc_question_list)
 
-            game_start_text = "Starting the game. Ready... Set.... QUIPLASH"
-            print(f"\n {game_start_text} \n")
+        #     game_start_text = "Starting the game. Ready... Set.... QUIPLASH"
+        #     print(f"\n {game_start_text} \n")
 
-            self.game_started = True 
-            # notifies other players game will begin 
-            for ip, stub in self.stubs.items(): 
-                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START, text=game_start_text)
-                reply = stub.NotifyPlayers(notification)
+        #     self.game_started = True 
+        #     # notifies other players game will begin 
+        #     for ip, stub in self.stubs.items(): 
+        #         notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START, text=game_start_text)
+        #         reply = stub.NotifyPlayers(notification)
             
 
-            # Wait until voting started flag is set to True if all answers have been received or it timed out
-            with self.voting_started_cv:
-                while not self.voting_started:
-                    self.voting_started_cv.wait(timeout=TIMEOUT_TO_RECEIVE_ANS)
-                    self.voting_started = True
-                    print("TIMEOUT_OCUURRED")
+        #     # Wait until voting started flag is set to True if all answers have been received or it timed out
+        #     with self.voting_started_cv:
+        #         while not self.voting_started:
+        #             self.voting_started_cv.wait(timeout=TIMEOUT_TO_RECEIVE_ANS)
+        #             self.voting_started = True
+        #             print("TIMEOUT_OCUURRED")
 
-            # 
-            # Send Answers from players to players
-            #            
-            grpc_answers = self._get_answers_as_grpc()
-            for ip, stub in self.stubs.items():
-                print(f"Send Answers to {ip}")
-                stub.SendAllAnswers(grpc_answers)
-            #
-            # Notifies other players voting phase begins
-            # 
-            for ip, stub in self.stubs.items():
-                print(f"Notify Voting to {ip}") 
-                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
-                reply = stub.NotifyPlayers(notification)
+        #     # 
+        #     # Send Answers from players to players
+        #     #            
+        #     grpc_answers = self._get_answers_as_grpc()
+        #     for ip, stub in self.stubs.items():
+        #         print(f"Send Answers to {ip}")
+        #         stub.SendAllAnswers(grpc_answers)
+        #     #
+        #     # Notifies other players voting phase begins
+        #     # 
+        #     for ip, stub in self.stubs.items():
+        #         print(f"Notify Voting to {ip}") 
+        #         notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
+        #         reply = stub.NotifyPlayers(notification)
             
-     
+        pass
      
 
 def serve(server_id, port, primary_ip):

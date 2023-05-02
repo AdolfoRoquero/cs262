@@ -45,6 +45,8 @@ class tkinterApp(tk.Tk):
         container.grid_columnconfigure(0, weight = 1)
   
         self.serve_grpc(port)
+        print("Post serve GRPC")
+
 
         # initializing frames to an empty array
         self.frames = {} 
@@ -61,8 +63,10 @@ class tkinterApp(tk.Tk):
             self.frames[F] = frame
   
             frame.grid(row = 0, column = 0, sticky ="nsew")
-        
+        print("Pre Show")
         self.show_frame(LandingPage)
+        print("Post Show")
+
   
     # to display the current frame passed as
     # parameter
@@ -93,9 +97,9 @@ class LandingPage(tk.Frame):
         self.servicer = servicer
         self.controller = controller
 
-        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=50)
+        self.LARGEFONT = tkfont.Font(family="Verdana", size=50)
         self.MEDFONT = tkfont.Font(family="Verdana", size=16, weight='bold')
-
+        print("beginning of show")
         # Load the image file
         image = Image.open("./StartPageWallpaper.jpeg")
         # Convert the image to a Tkinter-compatible format
@@ -131,7 +135,7 @@ class LandingPage(tk.Frame):
             font=self.MEDFONT, command = self.join_game)
         join_existing_button.place(relx=0.5, rely=0.65, anchor="center")
 
-        
+        print("end of first frame")
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
@@ -156,7 +160,7 @@ class JoinGamePage(tk.Frame):
         self.controller = controller
         self.servicer = servicer
 
-        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=50)
+        self.LARGEFONT = tkfont.Font(family="Verdana", size=50)
         self.MEDFONT = tkfont.Font(family="Verdana", size=16, weight='bold')
         self.SMALLFONT = tkfont.Font(family="Verdana", size=14)
 
@@ -257,7 +261,7 @@ class WaitingPage(tk.Frame):
     def __init__(self, parent, controller, servicer):
          
         tk.Frame.__init__(self, parent)
-        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=35)
+        self.LARGEFONT = tkfont.Font(family="Verdana", size=35)
         self.MEDFONT = tkfont.Font(family="Verdana", size=16, weight='bold')
         self.SMALLFONT = tkfont.Font(family="Verdana", size=14)
 
@@ -358,7 +362,7 @@ class VotingPage(tk.Frame):
     def __init__(self, parent, controller, servicer):
         tk.Frame.__init__(self, parent)
 
-        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=35)
+        self.LARGEFONT = tkfont.Font(family="Verdana", size=35)
         self.SMALLFONT = tkfont.Font(family="Verdana", size=14)
 
         # Create the canvas for the background image
@@ -436,7 +440,7 @@ class LeaderboardPage(tk.Frame):
     def __init__(self, parent, controller, servicer):
         tk.Frame.__init__(self, parent)
 
-        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=35)
+        self.LARGEFONT = tkfont.Font(family="Verdana", size=35)
 
         # Define the names and scores of the players
         player_names = ['Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5', 'Player 6', 'Player 7', 'Player 8']
@@ -462,10 +466,10 @@ class LeaderboardPage(tk.Frame):
 
         # Create a grid of Labels to display the player names and scores
         for i in range(len(player_names)):
-            name_label = tk.Label(self.frame, text=player_names[i], font=("Arial", 16))
+            name_label = tk.Label(self.frame, text=player_names[i], font=("Verdana", 16))
             name_label.grid(row=i+1, column=0, padx=20, pady=10)
             
-            score_label = tk.Label(self.frame, text=player_scores[i], font=("Arial", 16))
+            score_label = tk.Label(self.frame, text=player_scores[i], font=("Verdana", 16))
             score_label.grid(row=i+1, column=1, padx=20, pady=10)
 
         # Center the frame in the canvas
