@@ -13,7 +13,7 @@ import argparse
 import socket
 import threading
 from tkinter import messagebox
-
+import asyncio
 
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
@@ -36,7 +36,11 @@ class tkinterApp(tk.Tk):
         container.grid_rowconfigure(0, weight = 1)
         container.grid_columnconfigure(0, weight = 1)
   
-        self.serve_grpc(port)
+        IP = socket.gethostbyname(socket.gethostname())
+        self.ip = IP 
+        self.port = port 
+        self.servicer = QuiplashServicer(IP, port)
+        #self.serve_grpc(port)
 
 
         # initializing frames to an empty array
@@ -64,17 +68,23 @@ class tkinterApp(tk.Tk):
         frame.update()
         frame.tkraise()
     
-    def serve_grpc(self, port):
-        IP = socket.gethostbyname(socket.gethostname())
-        PORT = port
-    
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        quiplash_servicer = QuiplashServicer(IP, PORT)
-        quiplash_pb2_grpc.add_QuiplashServicer_to_server(quiplash_servicer, server)
-        self.servicer = quiplash_servicer
-        server.add_insecure_port(f'{IP}:{PORT}')
-        server.start()
-  
+    async def serve_grpc(self):
+        #IP = socket.gethostbyname(socket.gethostname())
+        #PORT = port
+        server = grpc.aio.server()
+        #quiplash_servicer = QuiplashServicer(IP, PORT)
+        quiplash_pb2_grpc.add_QuiplashServicer_to_server(self.servicer, server)
+        # self.servicer = quiplash_servicer
+        server.add_insecure_port(f'{self.ip}:{self.port}')
+
+        await server.start() 
+        await server.wait_for_termination() 
+
+    async def mainloop(self):
+        asyncio.create_task(self.serve_grpc())
+        while True: 
+            self.update() # replicating main loop functionality tkinter 
+            await asyncio.sleep(0.01)         
 
 class LandingPage(tk.Frame):
     def __init__(self, parent, controller, servicer):
@@ -181,8 +191,9 @@ class JoinGamePage(tk.Frame):
                                          port=self.servicer.port)
                         # send join game request 
                         stub = self.servicer.stubs[self.servicer.primary_address]
-                        qst_lst = quiplash_pb2.QuestionList(question_list=[quiplash_pb2.Question(question_id='1', question_text='2', topic='test')])
-                        reply = stub.SendQuestions(qst_lst)
+                        # qst_lst = quiplash_pb2.QuestionList(question_list=[quiplash_pb2.Question(question_id='1', question_text='2', topic='test')])
+                        reply = stub.JoinGame(user)
+                        print("status:", reply.request_status)
 
                         if reply.request_status == quiplash_pb2.SUCCESS:
                             
@@ -488,4 +499,4 @@ if __name__ == '__main__':
     args = parser.parse_args()  
     app = tkinterApp(args.port)
     app.resizable(False, False)
-    app.mainloop()
+    asyncio.run(app.mainloop())
