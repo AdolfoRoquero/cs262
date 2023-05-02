@@ -261,6 +261,7 @@ class QuiplashServicer(object):
             channel = grpc.insecure_channel(address)
             self.stubs[address] = quiplash_pb2_grpc.QuiplashStub(channel)
             print(f'Created stub to {address}')
+            
 
     def assign_questions(self, mode='all'):
         """
