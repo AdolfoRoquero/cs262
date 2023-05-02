@@ -39,6 +39,16 @@ class GameNotification(_message.Message):
     type: GameNotification.NotificationType
     def __init__(self, type: _Optional[_Union[GameNotification.NotificationType, str]] = ..., text: _Optional[str] = ...) -> None: ...
 
+class JoinGameReply(_message.Message):
+    __slots__ = ["num_players", "request_status", "rerouted"]
+    NUM_PLAYERS_FIELD_NUMBER: _ClassVar[int]
+    REQUEST_STATUS_FIELD_NUMBER: _ClassVar[int]
+    REROUTED_FIELD_NUMBER: _ClassVar[int]
+    num_players: int
+    request_status: RequestStatus
+    rerouted: str
+    def __init__(self, num_players: _Optional[int] = ..., request_status: _Optional[_Union[RequestStatus, str]] = ..., rerouted: _Optional[str] = ...) -> None: ...
+
 class LivenessRequest(_message.Message):
     __slots__ = []
     def __init__(self) -> None: ...

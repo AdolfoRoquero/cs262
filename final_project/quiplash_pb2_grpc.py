@@ -18,7 +18,7 @@ class QuiplashStub(object):
         self.JoinGame = channel.unary_unary(
                 '/chatapp.Quiplash/JoinGame',
                 request_serializer=quiplash__pb2.User.SerializeToString,
-                response_deserializer=quiplash__pb2.RequestReply.FromString,
+                response_deserializer=quiplash__pb2.JoinGameReply.FromString,
                 )
         self.SendQuestions = channel.unary_unary(
                 '/chatapp.Quiplash/SendQuestions',
@@ -99,7 +99,7 @@ def add_QuiplashServicer_to_server(servicer, server):
             'JoinGame': grpc.unary_unary_rpc_method_handler(
                     servicer.JoinGame,
                     request_deserializer=quiplash__pb2.User.FromString,
-                    response_serializer=quiplash__pb2.RequestReply.SerializeToString,
+                    response_serializer=quiplash__pb2.JoinGameReply.SerializeToString,
             ),
             'SendQuestions': grpc.unary_unary_rpc_method_handler(
                     servicer.SendQuestions,
@@ -150,7 +150,7 @@ class Quiplash(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/chatapp.Quiplash/JoinGame',
             quiplash__pb2.User.SerializeToString,
-            quiplash__pb2.RequestReply.FromString,
+            quiplash__pb2.JoinGameReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

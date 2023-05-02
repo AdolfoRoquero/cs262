@@ -27,26 +27,26 @@ TIMEOUT_TO_RECEIVE_ANS = 25
 class QuiplashServicer(object):
     """Interface exported by the server.
     """
-    def __init__(self, server_id, port, primary_ip):
-        self.server_id = server_id; 
+    def __init__(self, ip, port):
+        self.server_id = 1; 
         
-        self.ip = socket.gethostbyname(socket.gethostname())
+        self.ip = ip
         self.port = str(port)
         self.address = f"{self.ip}:{self.port}"
 
-        self.primary_ip = primary_ip
-        self.primary_port = os.environ['QUIPLASH_SERVER_PORT']
-        self.primary_address = f"{self.primary_ip}:{self.primary_port}"
+        self.primary_ip = ""
+        self.primary_port = ""
+        self.primary_address = ""
         
-        self.is_primary = (self.ip == self.primary_ip) and (self.port == self.primary_port)
-        print(f"Initialize server {server_id} ({'PRIMARY' if self.is_primary else 'NOT PRIMARY'}) at {self.address}")
+        self.is_primary = False
+        print(f"Initialize server {self.server_id} ({'PRIMARY' if self.is_primary else 'NOT PRIMARY'}) at {self.address}")
 
-        self._initialize_storage()
+        # self._initialize_storage()
 
         self.stubs = {}
-        # if not primary, create stub to primary ip address
-        if not self.is_primary: 
-            self.create_stub(self.primary_ip, self.primary_port)
+        # # if not primary, create stub to primary ip address
+        # if not self.is_primary: 
+        #     self.create_stub(self.primary_ip, self.primary_port)
 
         self.num_players = 0
         self.unanswered_questions = []
@@ -62,20 +62,29 @@ class QuiplashServicer(object):
         self.voting_started = False 
         self.voting_started_cv = threading.Condition()
 
-        
+    def setup_primary(self):
+        self.primary_ip = self.ip
+        self.primary_port = self.port
+        self.primary_address = f"{self.ip}:{self.port}"
+        self.is_primary = True  
+        self._initialize_storage()
+    
+    def setup_secondary(self):
+        self._initialize_storage()  
+
+    
     def JoinGame(self, request, context):
         """Request to enter as a User into a game 
         """
         if request.username in self._get_players(): 
             print(f"Error: User {request.username} has already joined")
-            return quiplash_pb2.RequestReply(reply='Failure, username taken', 
-                                             request_status=quiplash_pb2.FAILED)
+            return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.FAILED)
         else: 
             # add stub 
             self.create_stub(request.ip_address, request.port)
             self.add_new_player(request.username, request.ip_address, request.port)
-            return quiplash_pb2.RequestReply(reply = 'Success', 
-                                             request_status=quiplash_pb2.SUCCESS)
+            return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.SUCCESS,
+                                              num_players=self.num_players)
 
     def SendQuestions(self, request, context):
         """Request from primary server 
@@ -151,6 +160,7 @@ class QuiplashServicer(object):
         self.db.set('assignment', temp)        
         return quiplash_pb2.RequestReply(reply='Success', 
                                          request_status=quiplash_pb2.SUCCESS) 
+    
     def _initialize_storage(self, dir=os.getcwd()):
         """
         Helper function to initialize disk storage files.
@@ -167,6 +177,7 @@ class QuiplashServicer(object):
         if db_filename in os.listdir(dir):
             os.remove(db_filename)
 
+        print("db_filename", db_filename)
         # Create pickledb db instance, auto_dump is set to True, 
         # because we are manually handling the dumps to the database
         self.db = pickledb.load(db_filename, True)
@@ -289,7 +300,28 @@ class QuiplashServicer(object):
         return assigned_questions
         
 
-    def client_handle(self): 
+    def client_handle(self):
+        host_mode = input("Start New Game or Join Existing (1 or 2): ")
+        while host_mode not in ['1', '2']:
+            print("\nOption must be `1` or `2`\n")
+            host_mode = input("Start New Game or Join Existing (1 or 2)")
+
+        if host_mode == '1':
+            # Primary Node
+            self.setup_primary()
+        elif host_mode == '2':
+            # Secondary Node
+            game_host_address = input("Enter game code: ")
+            while len(game_host_address.split(':')) != 2:
+                print("\nCode must be of forman `<ip_address>:<port>` \n")
+                game_host_address = input("Enter game code: ")
+            
+            # TODO Check Liveness for correct ip
+
+            self.primary_ip, self.primary_port == game_host_address.split(':')
+            self.primary_address = game_host_address
+        
+
         # JoinGame routine 
         if not self.is_primary: 
             while True: 
@@ -306,6 +338,8 @@ class QuiplashServicer(object):
                     else:
                         self.username = username
                         print(f"Successfully joined game, username {self.username}")
+                        self.server_id = reply.num_players
+                        self._initialize_storage()
                         break
 
             # Wait until game phase starts
@@ -431,17 +465,15 @@ class QuiplashServicer(object):
      
      
 
-def serve(server_id, port, primary_ip):
-    
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    quiplash_servicer = QuiplashServicer(server_id, port, primary_ip)
-    quiplash_pb2_grpc.add_QuiplashServicer_to_server(quiplash_servicer, server)
-    
+def serve(port):
     IP = socket.gethostbyname(socket.gethostname())
     PORT = port
+    
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    quiplash_servicer = QuiplashServicer(IP, PORT)
+    quiplash_pb2_grpc.add_QuiplashServicer_to_server(quiplash_servicer, server)
     server.add_insecure_port(f'{IP}:{PORT}')
     server.start()
-
     # Start the client thread that takes terminal input with gRPC channel and stub
     client_thread = threading.Thread(target=quiplash_servicer.client_handle)
     client_thread.start()
@@ -453,13 +485,11 @@ def serve(server_id, port, primary_ip):
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser()
     servers = [1, 2, 3, 4, 5, 6, 7, 8]
-    parser.add_argument("--server", "-s", help="Server id", type=int, choices=servers, default=0)
     parser.add_argument("-P", "--port", help="Port of where server will be running", type=int, default=os.environ['QUIPLASH_SERVER_PORT'])
-    parser.add_argument("-I", "--primary_ip", help="IP address of primary server", default=socket.gethostbyname(socket.gethostname()))
 
     args = parser.parse_args()
     if args.port < 50000:
         print(f"Error: port number must be greater than 50000 (current:{args.port})")
         exit()
 
-    serve(args.server, args.port, args.primary_ip) 
+    serve(args.port) 
