@@ -316,15 +316,15 @@ class QuiplashServicer(object):
                 print(f"{question['question']}\n")
                 print(f"You have {TIME_TO_ANSWER} seconds to answer!\n")
                 
-        #         answered = False
-        #         try:
-        #             # Take timed input using inputimeout() function
-        #             answer_text = inputimeout(prompt='Your Answer:\n', timeout=TIME_TO_ANSWER)
-        #             answered = True
-        #         except Exception:
-        #             """Code will enter this code regardless of timeout or not"""
-        #             if not answered:
-        #                 print("You ran out of time! Moving to next question\n")
+                answered = False
+                try:
+                    # Take timed input using inputimeout() function
+                    answer_text = inputimeout(prompt='Your Answer:\n', timeout=TIME_TO_ANSWER)
+                    answered = True
+                except Exception:
+                    """Code will enter this code regardless of timeout or not"""
+                    if not answered:
+                        print("You ran out of time! Moving to next question\n")
                 
                 if answered:
                     respondent = quiplash_pb2.User(username=self.username)
