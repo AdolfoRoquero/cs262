@@ -16,6 +16,7 @@ import time
 from inputimeout import inputimeout
 
 
+
 TIME_TO_ANSWER = 10
 EMPTY_ANS_DEFAULT = "NA"
 
@@ -30,20 +31,20 @@ def dictToGRPCQuestion(question_dict, question_id):
 class QuiplashServicer(object):
     """Interface exported by the server.
     """
-    def __init__(self, server_id, port, primary_ip):
-        self.server_id = server_id; 
-        
+    def __init__(self):
+        self.server_id = 1 
         self.ip = socket.gethostbyname(socket.gethostname())
-        self.port = str(port)
+        self.port = os.environ['QUIPLASH_SERVER_PORT']
         self.address = f"{self.ip}:{self.port}"
 
-        self.primary_ip = primary_ip
-        self.primary_port = os.environ['QUIPLASH_SERVER_PORT']
+        # intialize primary ip to your own 
+        self.primary_ip = self.ip
+        self.primary_port = self.port
         self.primary_address = f"{self.primary_ip}:{self.primary_port}"
 
         
-        self.is_primary = (self.ip == self.primary_ip) and (self.port == self.primary_port)
-        print(f"Initialize server {server_id} ({'PRIMARY' if self.is_primary else 'NOT PRIMARY'}) at {self.address}")
+        self.is_primary = False 
+        print(f"Initialize server {self.server_id} ({'PRIMARY' if self.is_primary else 'NOT PRIMARY'}) at {self.address}")
 
         self.stubs = {}
 
@@ -216,143 +217,106 @@ class QuiplashServicer(object):
         
 
     def client_handle(self): 
-        # JoinGame routine 
-        if not self.is_primary: 
-            while True: 
-                username = input("Enter username: ").strip().lower()
-                user = quiplash_pb2.User(username=username, 
-                                         ip_address=self.ip, 
-                                         port=self.port)
-                if not username:
-                    print("Error: username cannot be empty")
-                else:
-                    reply = self.stubs[self.primary_address].JoinGame(user)
-                    if reply.request_status == quiplash_pb2.FAILED:
-                        print(reply.reply)
-                    else:
-                        self.username = username
-                        print(f"Successfully joined game, username {self.username}")
-                        break
+        pass 
+        # # JoinGame routine 
+        # if not self.is_primary: 
+        #     while True: 
+        #         username = input("Enter username: ").strip().lower()
+        #         user = quiplash_pb2.User(username=username, 
+        #                                  ip_address=self.ip, 
+        #                                  port=self.port)
+        #         if not username:
+        #             print("Error: username cannot be empty")
+        #         else:
+        #             reply = self.stubs[self.primary_address].JoinGame(user)
+        #             if reply.request_status == quiplash_pb2.FAILED:
+        #                 print(reply.reply)
+        #             else:
+        #                 self.username = username
+        #                 print(f"Successfully joined game, username {self.username}")
+        #                 break
 
-            # Wait until game phase starts
-            while not self.game_started: 
-                self.game_started_cv.wait()
+        #     # Wait until game phase starts
+        #     while not self.game_started: 
+        #         self.game_started_cv.wait()
 
-            print("Time to answer questions!!")
+        #     print("Time to answer questions!!")
 
-            for idx, question in enumerate(self.unanswered_questions):
-                print(f"\n\nQuestion {idx+1}/{len(self.unanswered_questions)}    Topic: {question['category']}")
-                print(f"{question['question']}\n")
-                print(f"You have {TIME_TO_ANSWER} seconds to answer!\n")
+        #     for idx, question in enumerate(self.unanswered_questions):
+        #         print(f"\n\nQuestion {idx+1}/{len(self.unanswered_questions)}    Topic: {question['category']}")
+        #         print(f"{question['question']}\n")
+        #         print(f"You have {TIME_TO_ANSWER} seconds to answer!\n")
                 
-                answered = False
-                try:
-                    # Take timed input using inputimeout() function
-                    answer_text = inputimeout(prompt='Your Answer:\n', timeout=TIME_TO_ANSWER)
-                    answered = True
-                except Exception:
-                    """Code will enter this code regardless of timeout or not"""
-                    if not answered:
-                        print("You ran out of time! Moving to next question\n")
+        #         answered = False
+        #         try:
+        #             # Take timed input using inputimeout() function
+        #             answer_text = inputimeout(prompt='Your Answer:\n', timeout=TIME_TO_ANSWER)
+        #             answered = True
+        #         except Exception:
+        #             """Code will enter this code regardless of timeout or not"""
+        #             if not answered:
+        #                 print("You ran out of time! Moving to next question\n")
                 
-                if answered:
-                    respondent = quiplash_pb2.User(username=self.username)
-                    grpc_answer = quiplash_pb2.Answer(respondent=respondent, 
-                                                      answer_text=answer_text, 
-                                                      question_id=question['question_id']) 
-                    reply = self.stubs[self.primary_address].SendAnswer(grpc_answer)
+        #         if answered:
+        #             respondent = quiplash_pb2.User(username=self.username)
+        #             grpc_answer = quiplash_pb2.Answer(respondent=respondent, 
+        #                                               answer_text=answer_text, 
+        #                                               question_id=question['question_id']) 
+        #             reply = self.stubs[self.primary_address].SendAnswer(grpc_answer)
 
-            while not self.voting_started: 
-                time.sleep(0.5)
-                continue
-            print("\n\n\nLet's Vote for funniest answer\n\n\n")
+        #     while not self.voting_started: 
+        #         time.sleep(0.5)
+        #         continue
+        #     print("\n\n\nLet's Vote for funniest answer\n\n\n")
 
 
 
  
-        else: 
-            while True: 
-                username = input("Enter username: ").strip().lower()
-                if username in self._get_players(): 
-                    print("Error: username taken")
-                elif not username:
-                    print("Error: username cannot be empty")
-                else: 
-                    self.username = username
-                    self.add_new_player(self.username, self.ip, self.port)
-                    break
-            print("\n Once all players have joined the room, press enter to start game \n")
-            while True: 
-                start_game = input("")
-                if start_game == '': 
-                    break 
-            game_start_text = "Starting the game. Ready... Set.... QUIPLASH"
-            print(f"\n {game_start_text} \n")
+        # else: 
+        #     while True: 
+        #         username = input("Enter username: ").strip().lower()
+        #         if username in self._get_players(): 
+        #             print("Error: username taken")
+        #         elif not username:
+        #             print("Error: username cannot be empty")
+        #         else: 
+        #             self.username = username
+        #             self.add_new_player(self.username, self.ip, self.port)
+        #             break
+        #     print("\n Once all players have joined the room, press enter to start game \n")
+        #     while True: 
+        #         start_game = input("")
+        #         if start_game == '': 
+        #             break 
+        #     game_start_text = "Starting the game. Ready... Set.... QUIPLASH"
+        #     print(f"\n {game_start_text} \n")
 
-            self.game_started = True 
+        #     self.game_started = True 
 
-            # notifies other players game will begin 
-            for ip, stub in self.stubs.items(): 
-                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START, text=game_start_text)
-                reply = stub.NotifyPlayers(notification)
+        #     # notifies other players game will begin 
+        #     for ip, stub in self.stubs.items(): 
+        #         notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START, text=game_start_text)
+        #         reply = stub.NotifyPlayers(notification)
 
-            assigned_questions = self.assign_questions()
+        #     assigned_questions = self.assign_questions()
 
-            for address, stub in self.stubs.items(): 
-                player_questions = assigned_questions[address]
-                grpc_question_list = []
-                for question_id in player_questions:
-                    question = self.db.dget('question_prompt', question_id)
-                    grpc_question = dictToGRPCQuestion(question, question_id)
-                    grpc_question_list.append(grpc_question)
-                reply = stub.SendQuestions(quiplash_pb2.QuestionList(question_list=grpc_question_list))
+        #     for address, stub in self.stubs.items(): 
+        #         player_questions = assigned_questions[address]
+        #         grpc_question_list = []
+        #         for question_id in player_questions:
+        #             question = self.db.dget('question_prompt', question_id)
+        #             grpc_question = dictToGRPCQuestion(question, question_id)
+        #             grpc_question_list.append(grpc_question)
+        #         reply = stub.SendQuestions(quiplash_pb2.QuestionList(question_list=grpc_question_list))
             
 
-            # Wait until voting started flag is set to True
-            # This flag is set to True once all answers have been received or the has been a timeout
-            if self.voting_started:
-                # notifies other players voting phase begins
-                for ip, stub in self.stubs.items():
-                    print(f"Notify Voting to {ip}") 
-                    notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
-                    reply = stub.NotifyPlayers(notification)
+        #     # Wait until voting started flag is set to True
+        #     # This flag is set to True once all answers have been received or the has been a timeout
+        #     if self.voting_started:
+        #         # notifies other players voting phase begins
+        #         for ip, stub in self.stubs.items():
+        #             print(f"Notify Voting to {ip}") 
+        #             notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
+        #             reply = stub.NotifyPlayers(notification)
 
             
-
-    
-            
-        
-           
-
-def serve(server_id, port, primary_ip):
-    
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    quiplash_servicer = QuiplashServicer(server_id, port, primary_ip)
-    quiplash_pb2_grpc.add_QuiplashServicer_to_server(quiplash_servicer, server)
-    
-    IP = socket.gethostbyname(socket.gethostname())
-    PORT = port
-    server.add_insecure_port(f'{IP}:{PORT}')
-    server.start()
-
-    # Start the client thread that takes terminal input with gRPC channel and stub
-    client_thread = threading.Thread(target=quiplash_servicer.client_handle)
-    client_thread.start()
-
-    server.wait_for_termination()
-
-
-
-if __name__ == '__main__': 
-    parser = argparse.ArgumentParser()
-    servers = [1, 2, 3, 4, 5, 6, 7, 8]
-    parser.add_argument("--server", "-s", help="Server id", type=int, choices=servers, default=0)
-    parser.add_argument("-P", "--port", help="Port of where server will be running", type=int, default=os.environ['QUIPLASH_SERVER_PORT'])
-    parser.add_argument("-I", "--primary_ip", help="IP address of primary server", default=socket.gethostbyname(socket.gethostname()))
-
-    args = parser.parse_args()
-    if args.port < 50000:
-        print(f"Error: port number must be greater than 50000 (current:{args.port})")
-        exit()
-
-    serve(args.server, args.port, args.primary_ip) 
