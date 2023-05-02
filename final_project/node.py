@@ -14,19 +14,15 @@ from client import client_handle
 import numpy as np 
 import time
 from inputimeout import inputimeout
+from collections import defaultdict
+
+
+
 
 
 TIME_TO_ANSWER = 10
 EMPTY_ANS_DEFAULT = "NA"
 TIMEOUT_TO_RECEIVE_ANS = 25
-
-
-def dictToGRPCQuestion(question_dict, question_id):
-        assert "category" in question_dict.keys() 
-        assert "question" in question_dict.keys()         
-        return quiplash_pb2.Question(question_id=question_id, 
-                                     question_text=question_dict['question'],
-                                     topic=question_dict['category'])
 
 class QuiplashServicer(object):
     """Interface exported by the server.
@@ -45,16 +41,9 @@ class QuiplashServicer(object):
         self.is_primary = (self.ip == self.primary_ip) and (self.port == self.primary_port)
         print(f"Initialize server {server_id} ({'PRIMARY' if self.is_primary else 'NOT PRIMARY'}) at {self.address}")
 
-        self.stubs = {}
-
-        self.game_started = False
-        self.game_started_cv = threading.Condition()
-
-
-        self.voting_started = False 
-        self.voting_started_cv = threading.Condition()
-
         self._initialize_storage()
+
+        self.stubs = {}
         # if not primary, create stub to primary ip address
         if not self.is_primary: 
             self.create_stub(self.primary_ip, self.primary_port)
@@ -62,6 +51,17 @@ class QuiplashServicer(object):
         self.num_players = 0
         self.unanswered_questions = []
         self.answers = []
+        self.answers_per_question = defaultdict(lambda: [])
+
+        #
+        # Condition variables
+        #
+        self.game_started = False
+        self.game_started_cv = threading.Condition()
+
+        self.voting_started = False 
+        self.voting_started_cv = threading.Condition()
+
         
     def JoinGame(self, request, context):
         """Request to enter as a User into a game 
@@ -131,10 +131,14 @@ class QuiplashServicer(object):
         print(f"Receiving all {len(request.answer_list)} at user {self.username}")
     
         for answer in request.answer_list:
+            self.answers_per_question[answer.question_id].append({
+                'user': answer.respondent.username, 
+                'answer': answer.answer_text})
+            
             self.answers.append({'user': answer.respondent.username, 
                                  'answer': answer.answer_text, 
                                  'question_id': answer.question_id})
-
+        
         return quiplash_pb2.RequestReply(reply='Success', 
                                          request_status=quiplash_pb2.SUCCESS) 
 
@@ -176,6 +180,8 @@ class QuiplashServicer(object):
         pending_users = set()
         assignments = self.db.get('assignment')
         for user in assignments:
+            if user == self.username:
+                continue
             for question in assignments[user]['questions']:
                 if assignments[user]['questions'][question]['answer'] == EMPTY_ANS_DEFAULT:
                     pending_users.add(user)
@@ -190,13 +196,13 @@ class QuiplashServicer(object):
         assignments = self.db.get("assignment")
         for user in assignments:
             for question_id in assignments[user]['questions']:
-                respondent = quiplash_pb2.User(username=self.username)
+                respondent = quiplash_pb2.User(username=user)
                 grpc_answer = quiplash_pb2.Answer(
                     respondent=respondent,
                     answer_text=assignments[user]['questions'][question_id]['answer'],
                     question_id=question_id)
-                
                 answer_list.append(grpc_answer)
+
         return quiplash_pb2.AnswerList(answer_list=answer_list)
     
     def _get_questions_as_grpc_list(self, question_ids):
@@ -321,6 +327,7 @@ class QuiplashServicer(object):
                 while not self.voting_started:
                     self.voting_started_cv.wait() 
             print("\n\n\nLet's Vote for funniest answer\n\n\n")
+            print(self.answers_per_question)
 
  
         else: 
