@@ -27,7 +27,7 @@ package chatapp;
 service Quiplash {
 
   // Request to enter as a User into a game 
-  rpc JoinGame(User) returns (RequestReply); 
+  rpc JoinGame(User) returns (JoinGameReply); 
 
   // Request from PRIMARY node to OTHER-NODES with questions to answer 
   rpc SendQuestions(QuestionList) returns (RequestReply); 
@@ -97,6 +97,16 @@ message RequestReply {
     RequestStatus request_status = 2;
     optional string rerouted = 3; 
 }
+
+// message JoinGameReply
+// Standard object for Server message replies to JoinGame Requests
+message JoinGameReply {
+    optional int32 num_players = 1; 
+    RequestStatus request_status = 2;
+    optional string rerouted = 3; 
+}
+
+
 
 // message User
 // Represents the User object (only username in this case)
