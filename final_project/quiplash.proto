@@ -35,6 +35,9 @@ service Quiplash {
   // Request from OTHER-NODES to PRIMARY node with answer to question 
   rpc SendAnswer(Answer) returns (RequestReply); 
 
+  // Request from OTHER-NODES to PRIMARY node with answer to question 
+  rpc SendVote(Vote) returns (RequestReply); 
+
   // Request from PRIMARY node to OTHER-NODES with all answers to all questions for voting.
   rpc SendAllAnswers(AnswerList) returns (RequestReply); 
 
@@ -128,7 +131,7 @@ message AnswerList {
 message Vote {
     User voter = 1; // User who voted for that answer; 
     string question_id = 2; // Identifies the question voted on; 
-    string answer_id = 3; // Identifies the answer the voter voted for; 
+    User votee = 3; // Identifies the user whose answer was voted for 
 }
 
 message GameNotification {

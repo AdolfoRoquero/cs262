@@ -104,7 +104,6 @@ class QuiplashServicer(object):
         else:
             print(f"Still Waiting for players {pend_players}\n")
 
-
         return quiplash_pb2.RequestReply(reply = 'Success', 
                                          request_status=quiplash_pb2.SUCCESS)
 
@@ -141,7 +140,17 @@ class QuiplashServicer(object):
         
         return quiplash_pb2.RequestReply(reply='Success', 
                                          request_status=quiplash_pb2.SUCCESS) 
+    def SendVote(self, request, context):
+        """Request from OTHER-NODES to PRIMARY node with vote for a given answer 
+        """
+        print(f"Vote from {request.voter.username} for question {request.question_id}  to {request.votee.username}")
 
+        # Tally vote count
+        temp = self.db.get('assignment')
+        temp[request.votee.username]['questions'][request.question_id]['vote_count'] += 1
+        self.db.set('assignment', temp)        
+        return quiplash_pb2.RequestReply(reply='Success', 
+                                         request_status=quiplash_pb2.SUCCESS) 
     def _initialize_storage(self, dir=os.getcwd()):
         """
         Helper function to initialize disk storage files.
@@ -173,6 +182,12 @@ class QuiplashServicer(object):
         """
         return self.db.get('assignment').keys()
     
+    def _get_question_data(self, question_id):
+        """
+        Extracts question info from static data
+        """
+        return self.db.dget("question_prompt", question_id)
+    
     def _get_players_pending_ans(self):
         """
         Checks if an answer has been received for all assigned questions to all users
@@ -180,6 +195,7 @@ class QuiplashServicer(object):
         pending_users = set()
         assignments = self.db.get('assignment')
         for user in assignments:
+            # TODO: Remover for primary to take part
             if user == self.username:
                 continue
             for question in assignments[user]['questions']:
@@ -238,7 +254,6 @@ class QuiplashServicer(object):
         if address in self.stubs.keys(): 
             print("Error: Stub already exists")
         else: 
-            
             channel = grpc.insecure_channel(address)
             self.stubs[address] = quiplash_pb2_grpc.QuiplashStub(channel)
             #print(f'Created stub to {node_ip_address}')
@@ -266,12 +281,11 @@ class QuiplashServicer(object):
             player_address = f"{player_info['ip']}:{player_info['port']}"
             assigned_questions[player_address] = (questions_to_assign[idx], questions_to_assign[idx + self.num_players])
 
-            # Handle persistence
+            # TODO Handle persistence
             temp = self.db.get("assignment")
             temp[player]["questions"][questions_to_assign[idx]] = {"answer": EMPTY_ANS_DEFAULT, "vote_count":0}
             temp[player]["questions"][questions_to_assign[idx + self.num_players]] = {"answer": EMPTY_ANS_DEFAULT, "vote_count":0}
             self.db.set("assignment", temp)
-        
         return assigned_questions
         
 
@@ -326,10 +340,36 @@ class QuiplashServicer(object):
             with self.voting_started_cv:
                 while not self.voting_started:
                     self.voting_started_cv.wait() 
+
             print("\n\n\nLet's Vote for funniest answer\n\n\n")
             print(self.answers_per_question)
-
- 
+            for idx, question_id in enumerate(self.answers_per_question):
+                question_info = self._get_question_data(question_id)
+                print(f"Question {idx}:\n")
+                print(f"Prompt {question_info['question']}\n\n")
+                users_with_answer = []
+                for ans_idx, answer in enumerate(self.answers_per_question[question_id]):
+                    print(f"Answer {answer['user']} :{answer['answer']}")
+                    users_with_answer.append(answer['user'])
+                
+                answered = False
+                try:
+                    # Take timed input using inputimeout() function
+                    pref_user = inputimeout(prompt='Your favorite answer is:\n', timeout=TIME_TO_ANSWER)
+                    answered = True
+                except Exception:
+                    """Code will enter this code regardless of timeout or not"""
+                    if not answered:
+                        print("You ran out of time! Moving to next question\n")
+                
+                if answered and (pref_user in users_with_answer):
+                    voter = quiplash_pb2.User(username=self.username)
+                    votee = quiplash_pb2.User(username=pref_user)
+                    grpc_vote = quiplash_pb2.Vote(voter=respondent, 
+                                                  votee=votee,
+                                                  question_id=question_id)
+                    reply = self.stubs[self.primary_address].SendVote(grpc_vote)
+            
         else: 
             while True: 
                 username = input("Enter username: ").strip().lower()
@@ -387,6 +427,7 @@ class QuiplashServicer(object):
                 print(f"Notify Voting to {ip}") 
                 notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
                 reply = stub.NotifyPlayers(notification)
+            
      
      
 
