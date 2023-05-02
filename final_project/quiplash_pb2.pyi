@@ -20,6 +20,12 @@ class Answer(_message.Message):
     respondent: User
     def __init__(self, respondent: _Optional[_Union[User, _Mapping]] = ..., answer_text: _Optional[str] = ..., question_id: _Optional[str] = ...) -> None: ...
 
+class AnswerList(_message.Message):
+    __slots__ = ["answer_list"]
+    ANSWER_LIST_FIELD_NUMBER: _ClassVar[int]
+    answer_list: _containers.RepeatedCompositeFieldContainer[Answer]
+    def __init__(self, answer_list: _Optional[_Iterable[_Union[Answer, _Mapping]]] = ...) -> None: ...
+
 class GameNotification(_message.Message):
     __slots__ = ["text", "type"]
     class NotificationType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -80,14 +86,14 @@ class User(_message.Message):
     def __init__(self, username: _Optional[str] = ..., ip_address: _Optional[str] = ..., port: _Optional[str] = ...) -> None: ...
 
 class Vote(_message.Message):
-    __slots__ = ["answer_id", "question_id", "voter"]
-    ANSWER_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ["question_id", "votee", "voter"]
     QUESTION_ID_FIELD_NUMBER: _ClassVar[int]
+    VOTEE_FIELD_NUMBER: _ClassVar[int]
     VOTER_FIELD_NUMBER: _ClassVar[int]
-    answer_id: str
     question_id: str
+    votee: User
     voter: User
-    def __init__(self, voter: _Optional[_Union[User, _Mapping]] = ..., question_id: _Optional[str] = ..., answer_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, voter: _Optional[_Union[User, _Mapping]] = ..., question_id: _Optional[str] = ..., votee: _Optional[_Union[User, _Mapping]] = ...) -> None: ...
 
 class RequestStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = []

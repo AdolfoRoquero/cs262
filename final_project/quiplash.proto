@@ -29,14 +29,22 @@ service Quiplash {
   // Request to enter as a User into a game 
   rpc JoinGame(User) returns (RequestReply); 
 
-  // Request from primary node to other node with questions to answer 
+  // Request from PRIMARY node to OTHER-NODES with questions to answer 
   rpc SendQuestions(QuestionList) returns (RequestReply); 
 
-  // Request from other nodes to primary node with answer to question 
+  // Request from OTHER-NODES to PRIMARY node with answer to question 
   rpc SendAnswer(Answer) returns (RequestReply); 
+
+  // Request from OTHER-NODES to PRIMARY node with answer to question 
+  rpc SendVote(Vote) returns (RequestReply); 
+
+  // Request from PRIMARY node to OTHER-NODES with all answers to all questions for voting.
+  rpc SendAllAnswers(AnswerList) returns (RequestReply); 
 
   // Server notification 
   rpc NotifyPlayers(GameNotification) returns (RequestReply);
+
+  
 
 
 //   // Request to list all users in the platform 
@@ -115,10 +123,15 @@ message Answer {
     string question_id = 3; // Identifies the question answered 
 }
 
+message AnswerList {
+    repeated Answer answer_list= 1; // List of answers
+}
+
+
 message Vote {
     User voter = 1; // User who voted for that answer; 
     string question_id = 2; // Identifies the question voted on; 
-    string answer_id = 3; // Identifies the answer the voter voted for; 
+    User votee = 3; // Identifies the user whose answer was voted for 
 }
 
 message GameNotification {

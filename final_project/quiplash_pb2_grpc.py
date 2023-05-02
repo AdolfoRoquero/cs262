@@ -30,6 +30,16 @@ class QuiplashStub(object):
                 request_serializer=quiplash__pb2.Answer.SerializeToString,
                 response_deserializer=quiplash__pb2.RequestReply.FromString,
                 )
+        self.SendVote = channel.unary_unary(
+                '/chatapp.Quiplash/SendVote',
+                request_serializer=quiplash__pb2.Vote.SerializeToString,
+                response_deserializer=quiplash__pb2.RequestReply.FromString,
+                )
+        self.SendAllAnswers = channel.unary_unary(
+                '/chatapp.Quiplash/SendAllAnswers',
+                request_serializer=quiplash__pb2.AnswerList.SerializeToString,
+                response_deserializer=quiplash__pb2.RequestReply.FromString,
+                )
         self.NotifyPlayers = channel.unary_unary(
                 '/chatapp.Quiplash/NotifyPlayers',
                 request_serializer=quiplash__pb2.GameNotification.SerializeToString,
@@ -49,14 +59,28 @@ class QuiplashServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def SendQuestions(self, request, context):
-        """Request from primary node to other node with questions to answer 
+        """Request from PRIMARY node to OTHER-NODES with questions to answer 
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def SendAnswer(self, request, context):
-        """Request from other nodes to primary node with answer to question 
+        """Request from OTHER-NODES to PRIMARY node with answer to question 
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SendVote(self, request, context):
+        """Request from OTHER-NODES to PRIMARY node with answer to question 
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SendAllAnswers(self, request, context):
+        """Request from PRIMARY node to OTHER-NODES with all answers to all questions for voting.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -85,6 +109,16 @@ def add_QuiplashServicer_to_server(servicer, server):
             'SendAnswer': grpc.unary_unary_rpc_method_handler(
                     servicer.SendAnswer,
                     request_deserializer=quiplash__pb2.Answer.FromString,
+                    response_serializer=quiplash__pb2.RequestReply.SerializeToString,
+            ),
+            'SendVote': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendVote,
+                    request_deserializer=quiplash__pb2.Vote.FromString,
+                    response_serializer=quiplash__pb2.RequestReply.SerializeToString,
+            ),
+            'SendAllAnswers': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendAllAnswers,
+                    request_deserializer=quiplash__pb2.AnswerList.FromString,
                     response_serializer=quiplash__pb2.RequestReply.SerializeToString,
             ),
             'NotifyPlayers': grpc.unary_unary_rpc_method_handler(
@@ -150,6 +184,40 @@ class Quiplash(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/chatapp.Quiplash/SendAnswer',
             quiplash__pb2.Answer.SerializeToString,
+            quiplash__pb2.RequestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def SendVote(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatapp.Quiplash/SendVote',
+            quiplash__pb2.Vote.SerializeToString,
+            quiplash__pb2.RequestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def SendAllAnswers(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatapp.Quiplash/SendAllAnswers',
+            quiplash__pb2.AnswerList.SerializeToString,
             quiplash__pb2.RequestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
