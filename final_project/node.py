@@ -36,6 +36,7 @@ class QuiplashServicer(object):
     """Interface exported by the server.
     """
     def __init__(self, ip, port):
+        
         self.server_id = 1
         
         self.ip = ip
@@ -51,7 +52,7 @@ class QuiplashServicer(object):
 
         self.db_filename = f'game_state_{self.address}.db' 
         self.server_log_filename = f'server_log_{self.address}.db' 
-
+        self._initialize_storage()
 
         self.stubs = {}
         # # if not primary, create stub to primary ip address
@@ -71,6 +72,9 @@ class QuiplashServicer(object):
 
         self.voting_started = False 
         self.voting_started_cv = threading.Condition()
+
+        self.sent_answers = False
+        self.timer_started = False
 
     def setup_primary(self):
         self.primary_ip = self.ip
@@ -171,6 +175,7 @@ class QuiplashServicer(object):
         if request.type == quiplash_pb2.GameNotification.VOTING_START: 
             with self.voting_started_cv:
                 self.voting_started = True 
+                self.game_started = False
                 self.voting_started_cv.notify_all()
         
         return quiplash_pb2.RequestReply(reply='Success', 
@@ -297,6 +302,8 @@ class QuiplashServicer(object):
     def assign_questions(self, mode='all'):
         """
         """
+        if not self.is_primary: 
+            raise RuntimeError("Only primary should run this function") 
         questions = self.db.get('question_prompt')
         if mode == 'all': 
             question_ids = list(questions.keys())
@@ -322,6 +329,12 @@ class QuiplashServicer(object):
             temp[player]["questions"][questions_to_assign[idx]] = {"answer": EMPTY_ANS_DEFAULT, "vote_count":0}
             temp[player]["questions"][questions_to_assign[idx + self.num_players]] = {"answer": EMPTY_ANS_DEFAULT, "vote_count":0}
             self.db.set("assignment", temp)
+
+            if player_address == self.address: 
+                for question_id in assigned_questions[player_address]:
+                    question_prompt = self.db.dget("question_prompt", question_id)
+                    question_prompt['question_id'] = question_id
+                    self.unanswered_questions.append(question_prompt)
         return assigned_questions
         
 

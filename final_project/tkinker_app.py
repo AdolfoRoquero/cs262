@@ -48,7 +48,7 @@ class tkinterApp(tk.Tk):
   
         # iterating through a tuple consisting
         # of the different page layouts
-        for F in (LandingPage, JoinGamePage, WaitingPage, QuestionPage, VotingPage, LeaderboardPage):
+        for F in (LandingPage, JoinGamePage, WaitingPage, QuestionPage, WaitingVotePage, VotingPage, LeaderboardPage):
   
             frame = F(container, self, self.servicer)
   
@@ -68,6 +68,17 @@ class tkinterApp(tk.Tk):
         frame.update()
         frame.tkraise()
     
+    def update(self):
+        if self.servicer.game_started and not self.servicer.sent_answers: 
+            self.show_frame(QuestionPage)
+            # Start the countdown
+            # QuestionPage.start_countdown()
+        elif self.servicer.game_started and self.servicer.sent_answers: 
+            self.show_frame(WaitingVotePage)
+        elif self.servicer.voting_started: 
+            self.show_frame(VotingPage)
+        super().update() # Call the parent class's update method
+    
     async def serve_grpc(self):
         #IP = socket.gethostbyname(socket.gethostname())
         #PORT = port
@@ -84,7 +95,9 @@ class tkinterApp(tk.Tk):
         asyncio.create_task(self.serve_grpc())
         while True: 
             self.update() # replicating main loop functionality tkinter 
-            await asyncio.sleep(0.01)         
+            await asyncio.sleep(0.01)     
+
+        
 
 class LandingPage(tk.Frame):
     def __init__(self, parent, controller, servicer):
@@ -92,7 +105,7 @@ class LandingPage(tk.Frame):
         self.servicer = servicer
         self.controller = controller
 
-        self.LARGEFONT = tkfont.Font(family="Verdana", size=50)
+        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=50)
         self.MEDFONT = tkfont.Font(family="Verdana", size=16, weight='bold')
 
         # Load the image file
@@ -149,7 +162,7 @@ class JoinGamePage(tk.Frame):
         self.controller = controller
         self.servicer = servicer
 
-        self.LARGEFONT = tkfont.Font(family="Verdana", size=50)
+        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=50)
         self.MEDFONT = tkfont.Font(family="Verdana", size=16, weight='bold')
         self.SMALLFONT = tkfont.Font(family="Verdana", size=14)
 
@@ -182,32 +195,26 @@ class JoinGamePage(tk.Frame):
                         self.servicer.primary_ip, self.servicer.primary_port = code.split(":") 
                         self.servicer.primary_address = code 
                         self.servicer.create_stub(self.servicer.primary_ip, self.servicer.primary_port)
-
-                        print(username, type(username))
-                        print("servicer ip ", self.servicer.ip, type(self.servicer.ip))
-                        print("servicer port ", self.servicer.port, type(self.servicer.port))
                         user = quiplash_pb2.User(username=username, 
                                          ip_address=self.servicer.ip, 
                                          port=self.servicer.port)
                         # send join game request 
                         stub = self.servicer.stubs[self.servicer.primary_address]
-                        # qst_lst = quiplash_pb2.QuestionList(question_list=[quiplash_pb2.Question(question_id='1', question_text='2', topic='test')])
                         reply = stub.JoinGame(user)
-                        print("status:", reply.request_status)
 
                         if reply.request_status == quiplash_pb2.SUCCESS:
                             
                             self.servicer.id = reply.num_players
                             self.servicer.num_players = reply.num_players 
                             self.servicer.username = username
-                            print("num players: ", reply.num_players)
+                            print(f"num players: {reply.num_players}, new_player: {username}")
+                            self.controller.show_frame(WaitingPage) 
 
                         elif reply.request_status == quiplash_pb2.FAILED:
                             show_message()
                         else: 
                             print("ERROR")
-                    else:
-                        self.controller.show_frame(WaitingPage) 
+                    
 
 
         self.code_entry = ttk.Entry(self,width=15, font=self.SMALLFONT)
@@ -271,7 +278,7 @@ class WaitingPage(tk.Frame):
     def __init__(self, parent, controller, servicer):
          
         tk.Frame.__init__(self, parent)
-        self.LARGEFONT = tkfont.Font(family="Verdana", size=35)
+        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=35)
         self.MEDFONT = tkfont.Font(family="Verdana", size=16, weight='bold')
         self.SMALLFONT = tkfont.Font(family="Verdana", size=14)
 
@@ -285,32 +292,56 @@ class WaitingPage(tk.Frame):
         self.share_code_text.place(relx=0.5, rely=0.3, anchor="center")
 
 
-        # button to start game 
-        start_game_button = tk.Button(self, text ="Start playing",
+        # button to start game, only available for primary node 
+        self.start_game_button = tk.Button(self, text ="Start playing",
             borderwidth = 0,  # Add this line
             highlightthickness = 0, relief='flat', height=4, width=20, 
             font=self.MEDFONT, command = self.start_game)
                             
-        # putting the button in its place
-        # by using grid
-        start_game_button.place(relx=0.5, rely=0.5, anchor="center")
-
-        button_explanation= ttk.Label(self, text ="Press the button below to start game once everyone has joined the room.", 
+        self.button_explanation= ttk.Label(self, text ="Press the button below to start game once everyone has joined the room.", 
             font = self.SMALLFONT, wraplength=350, justify="center", anchor="n")
-        button_explanation.place(relx=0.5, rely=0.7, anchor="center")
     
 
     def start_game(self): 
-        pass
+        if not self.servicer.is_primary:  
+            print("ERROR! only the primary node should start game")
+        else:
+            assigned_questions = self.servicer.assign_questions()
+            for address, stub in self.servicer.stubs.items(): 
+                print(f"Sending questions to {address}")
+                player_questions = assigned_questions[address]
+                grpc_question_list = self.servicer._get_questions_as_grpc_list(player_questions)
+                reply = stub.SendQuestions(grpc_question_list)
 
+            self.servicer.game_started = True 
+            game_start_text = "Starting the game. Ready... Set.... QUIPLASH"
+
+            # notifies other players game will begin 
+            for ip, stub in self.servicer.stubs.items(): 
+                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START, text=game_start_text)
+                reply = stub.NotifyPlayers(notification)
+            
+            self.controller.show_frame(QuestionPage) 
+            
     def update(self): 
         text =f"Share the code with your friends for them to join the game! {self.servicer.primary_address}"
         self.share_code_text.config(text=text)
+
+        if self.servicer.is_primary: 
+            self.start_game_button.place(relx=0.5, rely=0.5, anchor="center")
+            self.button_explanation.place(relx=0.5, rely=0.7, anchor="center")
+        else: 
+            # hiding the button and text from non primary nodes 
+            self.start_game_button.place(relx=0.5, rely=0.5, anchor="center", height=0, width=0)
+            self.button_explanation.place(relx=0.5, rely=0.7, anchor="center", height=0, width=0)
   
 
 class QuestionPage(tk.Frame):
     def __init__(self, parent, controller, servicer):
         tk.Frame.__init__(self, parent)
+
+        self.servicer = servicer
+        self.controller = controller
 
         # Create the canvas for the background image
         self.canvas = tk.Canvas(self, width=500, height=500)
@@ -327,56 +358,91 @@ class QuestionPage(tk.Frame):
         self.canvas.create_rectangle(50, 50, 700, 450, fill="white", outline="")
                 
         # Create the text labels and entry widgets
-        label1 = tk.Label(self.canvas, text="Question 1: What is the worst thing your dog could say to you?", 
+        self.question1 = tk.Label(self.canvas, text="Question 1: What is the worst thing your dog could say to you?", 
             bg="white", font=MEDFONT, wraplength=400, justify="center", anchor="n")
-        label1.place(relx=0.5, rely=0.3, anchor="center")
-        entry1 = tk.Entry(self.canvas)
-        entry1.place(relx=0.5, rely=0.4, anchor="center")
+        self.question1.place(relx=0.5, rely=0.3, anchor="center")
+        self.answer1 = tk.Entry(self.canvas)
+        self.answer1.place(relx=0.5, rely=0.4, anchor="center")
 
-        label2 = tk.Label(self.canvas, text="Question 2: What would be a much more interesting name for CS262?",
+        self.question2 = tk.Label(self.canvas, text="Question 2: What would be a much more interesting name for CS262?",
          bg="white", font=MEDFONT,  wraplength=400, justify="center", anchor="n")
-        label2.place(relx=0.5, rely=0.5, anchor="center")
-        entry2 = tk.Entry(self.canvas)
-        entry2.place(relx=0.5, rely=0.6, anchor="center")
+        self.question2.place(relx=0.5, rely=0.5, anchor="center")
+        self.answer2 = tk.Entry(self.canvas)
+        self.answer2.place(relx=0.5, rely=0.6, anchor="center")
 
-        button1 = tk.Button(self.canvas, text="Submit answers!", command=lambda: self.validate_fields(controller, entry1, entry2))
-        button1.place(relx=0.5, rely=0.8, anchor="center")
+        self.submit_answer_button = tk.Button(self.canvas, text="Submit answers!", command=self.validate_fields)
+        self.submit_answer_button.place(relx=0.5, rely=0.8, anchor="center")
 
         # Create the countdown label
         self.timer_label = tk.Label(self.canvas, text="00:00", font=MEDFONT, bg="white")
         self.timer_label.place(relx=0.5, rely=0.7, anchor="center")
 
         # Set the countdown duration in seconds
-        self.countdown_duration = 60
-
-        # Start the countdown
-        self.start_countdown()
+        # self.countdown_duration = 100
 
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-    def start_countdown(self):
+    def start_countdown(self, countdown_duration):
+            self.countdown_duration = countdown_duration
             # Update the timer label every second
             if self.countdown_duration > 0:
                 minutes = self.countdown_duration // 60
                 seconds = self.countdown_duration % 60
                 self.timer_label.configure(text="{:02d}:{:02d}".format(minutes, seconds))
                 self.countdown_duration -= 1
-                self.after(1000, self.start_countdown)
+                self.after(1000, lambda: self.start_countdown(self.countdown_duration))
             else:
-                # Do something when the countdown is over
-                pass
+                self.servicer.sent_answers = True 
+                self.submit_answer_button.config(state= "disabled")
 
-    def validate_fields(self, controller, entry1, entry2):
-        if entry1.get() and entry2.get():
-            controller.show_frame(VotingPage)
 
+    def validate_fields(self):
+        if self.answer1.get() and self.answer2.get():
+            self.servicer.sent_answers = True 
+            self.controller.show_frame(WaitingVotePage)
+            respondent = quiplash_pb2.User(username=self.servicer.username)
+            grpc_answer1 = quiplash_pb2.Answer(respondent=respondent, 
+                                            answer_text=self.answer1.get().strip(), 
+                                            question_id=self.servicer.unanswered_questions[0]['question_id']) 
+            reply = self.servicer.stubs[self.servicer.primary_address].SendAnswer(grpc_answer1)
+            grpc_answer2 = quiplash_pb2.Answer(respondent=respondent, 
+                                            answer_text=self.answer2.get().strip(), 
+                                            question_id=self.servicer.unanswered_questions[1]['question_id']) 
+            reply = self.servicer.stubs[self.servicer.primary_address].SendAnswer(grpc_answer2)
+    
+    def update(self): 
+        self.question1.config(text=self.servicer.unanswered_questions[0]['question'])
+        self.question2.config(text=self.servicer.unanswered_questions[1]['question'])
+        if not self.servicer.timer_started and self.servicer.game_started: 
+            self.servicer.timer_started = True 
+            self.start_countdown(60)
+
+
+
+class WaitingVotePage(tk.Frame):
+     
+    def __init__(self, parent, controller, servicer):
+         
+        tk.Frame.__init__(self, parent)
+        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=50)
+        self.MEDFONT = tkfont.Font(family="Super Mario 256", size=35)
+        self.SMALLFONT = tkfont.Font(family="Verdana", size=14)
+
+        self.controller = controller 
+        self.servicer = servicer
+
+        label1 = ttk.Label(self, text ="Quiplash fast!", font = self.LARGEFONT)
+        label1.place(relx=0.5, rely=0.2, anchor="center")
+
+        label2 = ttk.Label(self, text="Waiting on other players to submit responses.", font = self.MEDFONT, wraplength=300, justify="center", anchor="n")
+        label2.place(relx=0.5, rely=0.5, anchor="center")
 
 class VotingPage(tk.Frame):
     def __init__(self, parent, controller, servicer):
         tk.Frame.__init__(self, parent)
 
-        self.LARGEFONT = tkfont.Font(family="Verdana", size=35)
+        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=35)
         self.SMALLFONT = tkfont.Font(family="Verdana", size=14)
 
         # Create the canvas for the background image
@@ -427,7 +493,7 @@ class VotingPage(tk.Frame):
         self.countdown_duration = 10
 
         # Start the countdown
-        self.start_countdown()
+        #self.start_countdown()
 
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
@@ -454,7 +520,7 @@ class LeaderboardPage(tk.Frame):
     def __init__(self, parent, controller, servicer):
         tk.Frame.__init__(self, parent)
 
-        self.LARGEFONT = tkfont.Font(family="Verdana", size=35)
+        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=35)
 
         # Define the names and scores of the players
         player_names = ['Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5', 'Player 6', 'Player 7', 'Player 8']
