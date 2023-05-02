@@ -15,7 +15,15 @@ import numpy as np
 import time
 from inputimeout import inputimeout
 from collections import defaultdict
+import random
+import logging
 
+
+
+def delete_log_files(dir=os.getcwd()):
+    for path in os.listdir(dir):
+        if path.endswith('.log'):
+            os.remove(path)	
 
 
 
@@ -41,7 +49,10 @@ class QuiplashServicer(object):
         self.is_primary = False
         print(f"Initialize server {self.server_id} ({'PRIMARY' if self.is_primary else 'NOT PRIMARY'}) at {self.address}")
 
-        # self._initialize_storage()
+        self.db_filename = f'game_state_{self.address}.db' 
+        self.server_log_filename = f'server_log_{self.address}.db' 
+
+        self._initialize_storage()
 
         self.stubs = {}
         # # if not primary, create stub to primary ip address
@@ -67,17 +78,49 @@ class QuiplashServicer(object):
         self.primary_port = self.port
         self.primary_address = f"{self.ip}:{self.port}"
         self.is_primary = True  
-        self._initialize_storage()
     
     def setup_secondary(self):
-        self._initialize_storage()  
+        pass
+
+    def _initialize_storage(self, dir=os.getcwd()):
+        """
+        Helper function to initialize disk storage files.
+        Sets up all pending log files and db files.
+
+        If the server is rebooting, it will reuse the existing 
+        file instead of creating a new one.
+        """
+
+        # Delete previous server log
+        if self.server_log_filename in os.listdir(dir):
+            os.remove(self.server_log_filename)
+        
+        handler = logging.FileHandler(self.server_log_filename)        
+        self.logger = logging.getLogger(self.server_log_filename)
+        self.logger.setLevel(logging.INFO)
+        self.logger.addHandler(handler)
+
+        static_questions_filename = 'questions.db'
+        
+        # Delete previous database
+        if self.db_filename in os.listdir(dir):
+            os.remove(self.db_filename)
+
+        # Create pickledb db instance, auto_dump is set to True, 
+        # because we are manually handling the dumps to the database
+        self.db = pickledb.load(self.db_filename, True)
+
+        question_prompt_db = pickledb.load(static_questions_filename, True)
+        
+        self.db.set('question_prompt', question_prompt_db.get('question_prompt'))
+        self.db.set('assignment', {}) 
 
     
     def JoinGame(self, request, context):
         """Request to enter as a User into a game 
         """
         if request.username in self._get_players(): 
-            print(f"Error: User {request.username} has already joined")
+            self.logger.log(f"User {request.username} has already joined", level=logging.ERROR)
             return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.FAILED)
         else: 
             # add stub 
@@ -161,31 +204,7 @@ class QuiplashServicer(object):
         return quiplash_pb2.RequestReply(reply='Success', 
                                          request_status=quiplash_pb2.SUCCESS) 
     
-    def _initialize_storage(self, dir=os.getcwd()):
-        """
-        Helper function to initialize disk storage files.
-        Sets up all pending log files and db files.
-
-        If the server is rebooting, it will reuse the existing 
-        file instead of creating a new one.
-        """
-        
-        static_questions_filename = 'questions.db'
-        db_filename = 'game_state_' + str(self.server_id) + '.db' 
-        
-        # Delete previous database
-        if db_filename in os.listdir(dir):
-            os.remove(db_filename)
-
-        print("db_filename", db_filename)
-        # Create pickledb db instance, auto_dump is set to True, 
-        # because we are manually handling the dumps to the database
-        self.db = pickledb.load(db_filename, True)
-
-        question_prompt_db = pickledb.load(static_questions_filename, True)
-        
-        self.db.set('question_prompt', question_prompt_db.get('question_prompt'))
-        self.db.set('assignment', {})
+    
     
     def _get_players(self):
         """
@@ -262,12 +281,21 @@ class QuiplashServicer(object):
 
     def create_stub(self, node_ip_address, node_port):
         address = f"{node_ip_address}:{node_port}"
-        if address in self.stubs.keys(): 
-            print("Error: Stub already exists")
+        if address in self.stubs.keys():
+            self.logger.log(f"Stub already exists", level=logging.ERROR)
         else: 
             channel = grpc.insecure_channel(address)
-            self.stubs[address] = quiplash_pb2_grpc.QuiplashStub(channel)
-            #print(f'Created stub to {node_ip_address}')
+            stub = quiplash_pb2_grpc.QuiplashStub(channel)
+            try:
+                grpc.channel_ready_future(channel).result(timeout=2)
+                self.stubs[address] = stub 
+                self.logger.log(f"Created stub to {address}", level=logging.INFO)
+                return True
+            except grpc.FutureTimeoutError:
+                self.logger.log(f"Failed to connect to address {address}", level=logging.ERROR)
+                return False
+        
+            
 
     def assign_questions(self, mode='all'):
         """
@@ -312,15 +340,17 @@ class QuiplashServicer(object):
         elif host_mode == '2':
             # Secondary Node
             game_host_address = input("Enter game code: ")
-            while len(game_host_address.split(':')) != 2:
+            while not game_host_address or len(game_host_address.split(':')) != 2:
                 print("\nCode must be of forman `<ip_address>:<port>` \n")
                 game_host_address = input("Enter game code: ")
             
             # TODO Check Liveness for correct ip
 
-            self.primary_ip, self.primary_port == game_host_address.split(':')
+
+            self.primary_ip, self.primary_port = game_host_address.split(':')
             self.primary_address = game_host_address
-        
+            self.create_stub(self.primary_ip, self.primary_port)
+
 
         # JoinGame routine 
         if not self.is_primary: 
@@ -334,12 +364,11 @@ class QuiplashServicer(object):
                 else:
                     reply = self.stubs[self.primary_address].JoinGame(user)
                     if reply.request_status == quiplash_pb2.FAILED:
-                        print(reply.reply)
+                        print(f"Username {username} taken, try again")
                     else:
                         self.username = username
                         print(f"Successfully joined game, username {self.username}")
                         self.server_id = reply.num_players
-                        self._initialize_storage()
                         break
 
             # Wait until game phase starts
@@ -415,7 +444,9 @@ class QuiplashServicer(object):
                     self.username = username
                     self.add_new_player(self.username, self.ip, self.port)
                     break
+            print(f"\n\t\t\t Let others know your code !! \n \t\t\t{self.address} \n")
             print("\n Once all players have joined the room, press enter to start game \n")
+
             while True: 
                 start_game = input("")
                 if start_game == '': 
