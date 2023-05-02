@@ -21,15 +21,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageTk
 # LARGEFONT =("Verdana", 35, "bold")
 MEDFONT =("Verdana", 16, "bold")
 
-def dictToGRPCQuestion(question_dict, question_id):
-        assert "category" in question_dict.keys() 
-        assert "question" in question_dict.keys()         
-        return quiplash_pb2.Question(question_id=question_id, 
-                                     question_text=question_dict['question'],
-                                     topic=question_dict['category'])
 
-
-  
 class tkinterApp(tk.Tk):
      
     # __init__ function for class tkinterApp
@@ -46,6 +38,7 @@ class tkinterApp(tk.Tk):
   
         self.serve_grpc(port)
 
+
         # initializing frames to an empty array
         self.frames = {} 
   
@@ -61,16 +54,14 @@ class tkinterApp(tk.Tk):
             self.frames[F] = frame
   
             frame.grid(row = 0, column = 0, sticky ="nsew")
-        
         self.show_frame(LandingPage)
+
   
     # to display the current frame passed as
     # parameter
     def show_frame(self, cont):
         frame = self.frames[cont]
         frame.update()
-        print(self.servicer.primary_ip)
-        print(self.servicer.is_primary)
         frame.tkraise()
     
     def serve_grpc(self, port):
@@ -78,11 +69,9 @@ class tkinterApp(tk.Tk):
         PORT = port
     
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        quiplash_servicer = QuiplashServicer()
+        quiplash_servicer = QuiplashServicer(IP, PORT)
         quiplash_pb2_grpc.add_QuiplashServicer_to_server(quiplash_servicer, server)
         self.servicer = quiplash_servicer
-        self.servicer.port = port 
-        self.servicer.ip = IP 
         server.add_insecure_port(f'{IP}:{PORT}')
         server.start()
   
@@ -93,7 +82,7 @@ class LandingPage(tk.Frame):
         self.servicer = servicer
         self.controller = controller
 
-        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=50)
+        self.LARGEFONT = tkfont.Font(family="Verdana", size=50)
         self.MEDFONT = tkfont.Font(family="Verdana", size=16, weight='bold')
 
         # Load the image file
@@ -131,21 +120,15 @@ class LandingPage(tk.Frame):
             font=self.MEDFONT, command = self.join_game)
         join_existing_button.place(relx=0.5, rely=0.65, anchor="center")
 
-        
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
     def start_new_game(self): 
         # set this server as the primary server for new game 
-        self.servicer.primary_ip = socket.gethostbyname(socket.gethostname())
-        self.servicer.is_primary = True  
-        self.servicer.server_id = self.servicer.num_players + 1 
-        self.servicer.address = f"{self.servicer.ip}:{self.servicer.port}"
-        self.servicer.primary_address = f"{self.servicer.ip}:{self.servicer.port}"
+        self.servicer.setup_primary()
         self.controller.show_frame(JoinGamePage)
 
-    def join_game(self): 
-        self.servicer.is_primary = False 
+    def join_game(self):        
         self.controller.show_frame(JoinGamePage)
  
 
@@ -156,7 +139,7 @@ class JoinGamePage(tk.Frame):
         self.controller = controller
         self.servicer = servicer
 
-        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=50)
+        self.LARGEFONT = tkfont.Font(family="Verdana", size=50)
         self.MEDFONT = tkfont.Font(family="Verdana", size=16, weight='bold')
         self.SMALLFONT = tkfont.Font(family="Verdana", size=14)
 
@@ -179,20 +162,40 @@ class JoinGamePage(tk.Frame):
             username = self.username_entry.get().strip()
 
             if self.servicer.is_primary and username and username != 'Enter Username': 
+                self.servicer.username = username
+                self.servicer.add_new_player(username, self.servicer.ip, self.servicer.port)
                 self.controller.show_frame(WaitingPage) 
             else: 
                 if code and username:
                     if code != 'Enter Code Game' and username != 'Enter Username': 
                         # TODO lOGIC HERE FOR CHECKING GAME CODE 
+                        self.servicer.primary_ip, self.servicer.primary_port = code.split(":") 
+                        self.servicer.primary_address = code 
+                        self.servicer.create_stub(self.servicer.primary_ip, self.servicer.primary_port)
+
+                        print(username, type(username))
+                        print("servicer ip ", self.servicer.ip, type(self.servicer.ip))
+                        print("servicer port ", self.servicer.port, type(self.servicer.port))
                         user = quiplash_pb2.User(username=username, 
                                          ip_address=self.servicer.ip, 
                                          port=self.servicer.port)
                         # send join game request 
-                        reply = self.servicer.stubs[self.servicer.primary_address].JoinGame(user)
-                        if reply.request_status == quiplash_pb2.FAILED:
+                        stub = self.servicer.stubs[self.servicer.primary_address]
+                        qst_lst = quiplash_pb2.QuestionList(question_list=[quiplash_pb2.Question(question_id='1', question_text='2', topic='test')])
+                        reply = stub.SendQuestions(qst_lst)
+
+                        if reply.request_status == quiplash_pb2.SUCCESS:
+                            
+                            self.servicer.id = reply.num_players
+                            self.servicer.num_players = reply.num_players 
+                            self.servicer.username = username
+                            print("num players: ", reply.num_players)
+
+                        elif reply.request_status == quiplash_pb2.FAILED:
                             show_message()
+                        else: 
+                            print("ERROR")
                     else:
-                        self.servicer.username = username
                         self.controller.show_frame(WaitingPage) 
 
 
@@ -242,7 +245,7 @@ class JoinGamePage(tk.Frame):
     def update(self): 
         if self.servicer.is_primary: 
             self.code_entry.delete(0, "end") # delete all the text in the entry widget
-            self.code_entry.insert(0, self.servicer.primary_ip)
+            self.code_entry.insert(0, self.servicer.primary_address)
             self.code_entry.config(state= "disabled")
         else: 
             self.code_entry.delete(0, "end") # delete all the text in the entry widget
@@ -257,7 +260,7 @@ class WaitingPage(tk.Frame):
     def __init__(self, parent, controller, servicer):
          
         tk.Frame.__init__(self, parent)
-        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=35)
+        self.LARGEFONT = tkfont.Font(family="Verdana", size=35)
         self.MEDFONT = tkfont.Font(family="Verdana", size=16, weight='bold')
         self.SMALLFONT = tkfont.Font(family="Verdana", size=14)
 
@@ -267,8 +270,7 @@ class WaitingPage(tk.Frame):
         welcome_label = ttk.Label(self, text ="Waiting for other players to join!", font = self.LARGEFONT)
         welcome_label.place(relx=0.5, rely=0.2, anchor="center")
 
-        self.share_code_text = ttk.Label(self, text =f"Share the code with your friends for them to join the game! {self.servicer.primary_ip}", 
-            font = self.MEDFONT, wraplength=300, justify="center", anchor="n")
+        self.share_code_text = ttk.Label(self, text="", font = self.MEDFONT, wraplength=300, justify="center", anchor="n")
         self.share_code_text.place(relx=0.5, rely=0.3, anchor="center")
 
 
@@ -286,8 +288,13 @@ class WaitingPage(tk.Frame):
             font = self.SMALLFONT, wraplength=350, justify="center", anchor="n")
         button_explanation.place(relx=0.5, rely=0.7, anchor="center")
     
+
     def start_game(self): 
         pass
+
+    def update(self): 
+        text =f"Share the code with your friends for them to join the game! {self.servicer.primary_address}"
+        self.share_code_text.config(text=text)
   
 
 class QuestionPage(tk.Frame):
@@ -358,7 +365,7 @@ class VotingPage(tk.Frame):
     def __init__(self, parent, controller, servicer):
         tk.Frame.__init__(self, parent)
 
-        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=35)
+        self.LARGEFONT = tkfont.Font(family="Verdana", size=35)
         self.SMALLFONT = tkfont.Font(family="Verdana", size=14)
 
         # Create the canvas for the background image
@@ -436,7 +443,7 @@ class LeaderboardPage(tk.Frame):
     def __init__(self, parent, controller, servicer):
         tk.Frame.__init__(self, parent)
 
-        self.LARGEFONT = tkfont.Font(family="Super Mario 256", size=35)
+        self.LARGEFONT = tkfont.Font(family="Verdana", size=35)
 
         # Define the names and scores of the players
         player_names = ['Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5', 'Player 6', 'Player 7', 'Player 8']
@@ -462,10 +469,10 @@ class LeaderboardPage(tk.Frame):
 
         # Create a grid of Labels to display the player names and scores
         for i in range(len(player_names)):
-            name_label = tk.Label(self.frame, text=player_names[i], font=("Arial", 16))
+            name_label = tk.Label(self.frame, text=player_names[i], font=("Verdana", 16))
             name_label.grid(row=i+1, column=0, padx=20, pady=10)
             
-            score_label = tk.Label(self.frame, text=player_scores[i], font=("Arial", 16))
+            score_label = tk.Label(self.frame, text=player_scores[i], font=("Verdana", 16))
             score_label.grid(row=i+1, column=1, padx=20, pady=10)
 
         # Center the frame in the canvas
@@ -476,7 +483,7 @@ class LeaderboardPage(tk.Frame):
 
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-P", "--port", help="Port of where server will be running", type=int, default=os.environ['QUIPLASH_SERVER_PORT'])
+    parser.add_argument("-P", "--port", help="Port of where server will be running", type=str, default=os.environ['QUIPLASH_SERVER_PORT'])
 
     args = parser.parse_args()  
     app = tkinterApp(args.port)
