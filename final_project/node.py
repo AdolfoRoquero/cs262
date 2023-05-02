@@ -96,7 +96,7 @@ class QuiplashServicer(object):
             os.remove(self.server_log_filename)
         
         handler = logging.FileHandler(self.server_log_filename)        
-        self.logger = logging.getLogger(self.server_log_filename)
+        self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.INFO)
         self.logger.addHandler(handler)
 
@@ -120,7 +120,7 @@ class QuiplashServicer(object):
         """Request to enter as a User into a game 
         """
         if request.username in self._get_players(): 
-            self.logger.log(f"User {request.username} has already joined", level=logging.ERROR)
+            self.logger.error(f"User {request.username} has already joined")
             return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.FAILED)
         else: 
             # add stub 
@@ -130,10 +130,9 @@ class QuiplashServicer(object):
                                               num_players=self.num_players)
 
     def SendQuestions(self, request, context):
-        """Request from primary server 
+        """Request triggered from primary server to other servers
         """
-        print(f"Received question at {self.address}")
-        print(request.question_list)
+        self.logger.info(f"QUESTIONS RECV: Questions received ({len(request.question_list)}) at {self.address}")
         for question in request.question_list:
             question_prompt = self.db.dget("question_prompt", question.question_id)
             question_prompt['question_id'] = question.question_id
@@ -144,17 +143,19 @@ class QuiplashServicer(object):
     def SendAnswer(self, request, context):
         """Request from other nodes to primary node with answer to question 
         """
-        print(f"Received Anwers from {request.respondent.username}")
+        self.logger.info(f"ANSWERS RECV: Received Anwers from {request.respondent.username}")
         self.add_new_answer(request.respondent.username, request.question_id, request.answer_text)
 
         # Check if ready to move to voting phase:
         pend_players = self._get_players_pending_ans()
         if len(pend_players) == 0:
+            self.logger.info(f"\tAll anwers received")
+
             with self.voting_started_cv:
                 self.voting_started = True
                 self.voting_started_cv.notify_all()
         else:
-            print(f"Still Waiting for players {pend_players}\n")
+            self.logger.info(f"\tMissing answers from {request.respondent.username}")
 
         return quiplash_pb2.RequestReply(reply = 'Success', 
                                          request_status=quiplash_pb2.SUCCESS)
@@ -162,7 +163,7 @@ class QuiplashServicer(object):
     def NotifyPlayers(self, request, context):
         """Server notification 
         """
-        print(f"Player {self.username} has been notified ")
+        self.logger.info(f"NOTIFICATION RECV: Received Notification at {self.username}")
         if request.type == quiplash_pb2.GameNotification.GAME_START: 
             with self.game_started_cv:
                 self.game_started = True 
@@ -179,7 +180,7 @@ class QuiplashServicer(object):
     def SendAllAnswers(self, request, context):
         """Request from PRIMARY node to OTHER-NODES with all answers to all questions for voting.
         """
-        print(f"Receiving all {len(request.answer_list)} at user {self.username}")
+        self.logger.info(f"ALL ANSWERS RECV: Received all anwers ({len(request.answer_list)}) at {self.username}")
     
         for answer in request.answer_list:
             self.answers_per_question[answer.question_id].append({
@@ -195,8 +196,7 @@ class QuiplashServicer(object):
     def SendVote(self, request, context):
         """Request from OTHER-NODES to PRIMARY node with vote for a given answer 
         """
-        print(f"Vote from {request.voter.username} for question {request.question_id}  to {request.votee.username}")
-
+        self.logger.info(f"VOTE RECV: Vote received from {request.voter.username} to {request.votee.username} on question {request.question_id}")
         # Tally vote count
         temp = self.db.get('assignment')
         temp[request.votee.username]['questions'][request.question_id]['vote_count'] += 1
@@ -282,17 +282,17 @@ class QuiplashServicer(object):
     def create_stub(self, node_ip_address, node_port):
         address = f"{node_ip_address}:{node_port}"
         if address in self.stubs.keys():
-            self.logger.log(f"Stub already exists", level=logging.ERROR)
+            self.logger.error(f"ERROR: Stub already exists")
         else: 
             channel = grpc.insecure_channel(address)
             stub = quiplash_pb2_grpc.QuiplashStub(channel)
             try:
                 grpc.channel_ready_future(channel).result(timeout=2)
                 self.stubs[address] = stub 
-                self.logger.log(f"Created stub to {address}", level=logging.INFO)
+                self.logger.info(f"STUB CREATED: Created stub to {address}")
                 return True
             except grpc.FutureTimeoutError:
-                self.logger.log(f"Failed to connect to address {address}", level=logging.ERROR)
+                self.logger.error(f"ERROR: Failed to connect to address {address}")
                 return False
         
             
@@ -337,11 +337,14 @@ class QuiplashServicer(object):
         if host_mode == '1':
             # Primary Node
             self.setup_primary()
+
+
+
         elif host_mode == '2':
             # Secondary Node
             game_host_address = input("Enter game code: ")
             while not game_host_address or len(game_host_address.split(':')) != 2:
-                print("\nCode must be of forman `<ip_address>:<port>` \n")
+                print("\nCode must be of form `<ip_address>:<port>` \n")
                 game_host_address = input("Enter game code: ")
             
             # TODO Check Liveness for correct ip
@@ -432,7 +435,7 @@ class QuiplashServicer(object):
                                                   votee=votee,
                                                   question_id=question_id)
                     reply = self.stubs[self.primary_address].SendVote(grpc_vote)
-            
+                       
         else: 
             while True: 
                 username = input("Enter username: ").strip().lower()
