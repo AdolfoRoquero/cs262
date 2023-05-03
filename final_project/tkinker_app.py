@@ -49,12 +49,8 @@ class tkinterApp(tk.Tk):
         # iterating through a tuple consisting
         # of the different page layouts
         for F in (LandingPage, JoinGamePage, WaitingPage, QuestionPage, WaitingVotePage, VotingPage, LeaderboardPage):
-  
             frame = F(container, self, self.servicer)
-  
-            # initializing frame of that object from
-            # startpage, page1, page2 respectively with
-            # for loop
+            # initializing frame of that object
             self.frames[F] = frame
   
             frame.grid(row = 0, column = 0, sticky ="nsew")
@@ -69,14 +65,18 @@ class tkinterApp(tk.Tk):
         frame.tkraise()
     
     def update(self):
-        if self.servicer.game_started and not self.servicer.sent_answers: 
+        if self.servicer.game_started and not self.servicer.sent_answers and not self.servicer.voting_started and not self.servicer.scoring_started: 
             self.show_frame(QuestionPage)
-            # Start the countdown
-            # QuestionPage.start_countdown()
-        elif self.servicer.game_started and self.servicer.sent_answers: 
+        elif self.servicer.game_started and self.servicer.sent_answers and not self.servicer.voting_started and not self.servicer.scoring_started: 
             self.show_frame(WaitingVotePage)
-        elif self.servicer.voting_started: 
+        elif self.servicer.game_started and self.servicer.sent_answers and self.servicer.voting_started and not self.servicer.scoring_started:
             self.show_frame(VotingPage)
+        elif self.servicer.game_started and self.servicer.sent_answers and self.servicer.voting_started and self.servicer.scoring_started:
+            self.show_frame(LeaderboardPage)
+        
+        # else: 
+        #     print(self.servicer.game_started, self.servicer.sent_answers, self.servicer.voting_started, self.servicer.scoring_started)
+            
         super().update() # Call the parent class's update method
     
     async def serve_grpc(self):
@@ -370,11 +370,11 @@ class QuestionPage(tk.Frame):
         self.answer2 = tk.Entry(self.canvas)
         self.answer2.place(relx=0.5, rely=0.6, anchor="center")
 
-        self.submit_answer_button = tk.Button(self.canvas, text="Submit answers!", command=self.validate_fields)
+        self.submit_answer_button = tk.Button(self.canvas, text="Submit answers!", command=self.submit_answers)
         self.submit_answer_button.place(relx=0.5, rely=0.8, anchor="center")
 
         # Create the countdown label
-        self.timer_label = tk.Label(self.canvas, text="00:00", font=MEDFONT, bg="white")
+        self.timer_label = tk.Label(self.canvas, text="00:00", font=MEDFONT, bg="white", foreground='black')
         self.timer_label.place(relx=0.5, rely=0.7, anchor="center")
 
         # Set the countdown duration in seconds
@@ -387,36 +387,54 @@ class QuestionPage(tk.Frame):
             self.countdown_duration = countdown_duration
             # Update the timer label every second
             if self.countdown_duration > 0:
+                if self.countdown_duration < 10: 
+                    self.timer_label.configure(foreground='red')
                 minutes = self.countdown_duration // 60
                 seconds = self.countdown_duration % 60
                 self.timer_label.configure(text="{:02d}:{:02d}".format(minutes, seconds))
                 self.countdown_duration -= 1
                 self.after(1000, lambda: self.start_countdown(self.countdown_duration))
             else:
-                self.servicer.sent_answers = True 
+                self.timer_ended = True # flag for validate fields function 
+                self.submit_answers()
                 self.submit_answer_button.config(state= "disabled")
+                if self.servicer.is_primary: 
+                    for ip, stub in self.servicer.stubs.items():
+                        print(f"Notify Voting to {ip}") 
+                        notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
+                        reply = stub.NotifyPlayers(notification)
+                self.servicer.sent_answers = True 
 
 
-    def validate_fields(self):
-        if self.answer1.get() and self.answer2.get():
+    def submit_answers(self):
+        if (self.answer1.get() and self.answer2.get()) or self.timer_ended:
+            respondent = quiplash_pb2.User(username=self.servicer.username)
+            question1_id = self.servicer.unanswered_questions[0]['question_id']
+            question2_id = self.servicer.unanswered_questions[1]['question_id']
+            answer1 = self.answer1.get().strip()
+            answer2 = self.answer2.get().strip()
             self.servicer.sent_answers = True 
             self.controller.show_frame(WaitingVotePage)
-            respondent = quiplash_pb2.User(username=self.servicer.username)
-            grpc_answer1 = quiplash_pb2.Answer(respondent=respondent, 
-                                            answer_text=self.answer1.get().strip(), 
-                                            question_id=self.servicer.unanswered_questions[0]['question_id']) 
-            reply = self.servicer.stubs[self.servicer.primary_address].SendAnswer(grpc_answer1)
-            grpc_answer2 = quiplash_pb2.Answer(respondent=respondent, 
-                                            answer_text=self.answer2.get().strip(), 
-                                            question_id=self.servicer.unanswered_questions[1]['question_id']) 
-            reply = self.servicer.stubs[self.servicer.primary_address].SendAnswer(grpc_answer2)
-    
+            if self.servicer.is_primary:
+                self.servicer.add_new_answer(respondent.username, question1_id, answer1) 
+                self.servicer.add_new_answer(respondent.username, question2_id, answer2) 
+
+            else: 
+                grpc_answer1 = quiplash_pb2.Answer(respondent=respondent, 
+                                                answer_text=answer1, 
+                                                question_id=question1_id) 
+                reply = self.servicer.stubs[self.servicer.primary_address].SendAnswer(grpc_answer1)
+                grpc_answer2 = quiplash_pb2.Answer(respondent=respondent, 
+                                                answer_text=answer2, 
+                                                question_id=question2_id) 
+                reply = self.servicer.stubs[self.servicer.primary_address].SendAnswer(grpc_answer2)
+        
     def update(self): 
         self.question1.config(text=self.servicer.unanswered_questions[0]['question'])
         self.question2.config(text=self.servicer.unanswered_questions[1]['question'])
         if not self.servicer.timer_started and self.servicer.game_started: 
             self.servicer.timer_started = True 
-            self.start_countdown(60)
+            self.start_countdown(15)
 
 
 
@@ -455,7 +473,6 @@ class VotingPage(tk.Frame):
         self.canvas.background = photo  # Keep a reference to the photo to prevent garbage collection
         self.canvas.create_image(0, 0, image=photo, anchor="nw")
         
-        
         # Create the transparent rectangle
         self.canvas.create_rectangle(50, 50, 700, 450, fill="white", outline="")
                 
@@ -464,26 +481,26 @@ class VotingPage(tk.Frame):
             bg="white", font=self.LARGEFONT, wraplength=400, justify="center", anchor="n")
         title_label.place(relx=0.5, rely=0.2, anchor="center")
 
-        question = tk.Label(self.canvas, text="What would be a much more interesting name for CS262?",
+        self.question = tk.Label(self.canvas, text="What would be a much more interesting name for CS262?",
          bg="white", font=MEDFONT,  wraplength=400, justify="center", anchor="n")
-        question.place(relx=0.5, rely=0.4, anchor="center")
+        self.question.place(relx=0.5, rely=0.4, anchor="center")
 
-        answer1 = tk.Label(self.canvas, text="The Art of Making Things Fail Together", 
+        self.answer1 = tk.Label(self.canvas, text="The Art of Making Things Fail Together", 
             wraplength=120, justify="center", anchor="c", font=self.SMALLFONT)
-        answer1.place(relx=0.2, rely=0.5)
-        answer2 = tk.Label(self.canvas, text="Making Skynet a Reality, One System at a Time",
+        self.answer1.place(relx=0.2, rely=0.5)
+        self.answer2 = tk.Label(self.canvas, text="Making Skynet a Reality, One System at a Time",
             wraplength=120, justify="center", anchor="c", font=self.SMALLFONT)
-        answer2.place(relx=0.4, rely=0.5)
-        answer3 = tk.Label(self.canvas, text="How to Break the Internet 101", 
+        self.answer2.place(relx=0.4, rely=0.5)
+        self.answer3 = tk.Label(self.canvas, text="How to Break the Internet 101", 
             wraplength=120, justify="center", anchor="c", font=self.SMALLFONT)
-        answer3.place(relx=0.6, rely=0.5)
+        self.answer3.place(relx=0.6, rely=0.5)
         
-        button1 = tk.Button(self.canvas, text="Option 1", command=lambda: self.vote(controller, 1), font=self.SMALLFONT)
-        button1.place(relx=0.21, rely=0.7)
-        button2 = tk.Button(self.canvas, text="Option 2", command=lambda: self.vote(controller, 2), font=self.SMALLFONT)
-        button2.place(relx=0.42, rely=0.7)
-        button3 = tk.Button(self.canvas, text="Option 3", command=lambda: self.vote(controller, 3), font=self.SMALLFONT)
-        button3.place(relx=0.62, rely=0.7)
+        self.button1 = tk.Button(self.canvas, text="Option 1", command=lambda: self.vote(controller, 1), font=self.SMALLFONT)
+        self.button1.place(relx=0.21, rely=0.7)
+        self.button2 = tk.Button(self.canvas, text="Option 2", command=lambda: self.vote(controller, 2), font=self.SMALLFONT)
+        self.button2.place(relx=0.42, rely=0.7)
+        self.button3 = tk.Button(self.canvas, text="Option 3", command=lambda: self.vote(controller, 3), font=self.SMALLFONT)
+        self.button3.place(relx=0.62, rely=0.7)
         
         # Create the countdown label
         self.timer_label = tk.Label(self.canvas, text="00:00", font=MEDFONT, bg="white")
@@ -493,27 +510,51 @@ class VotingPage(tk.Frame):
         self.countdown_duration = 10
 
         # Start the countdown
-        #self.start_countdown()
-
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-    def start_countdown(self):
+    def start_countdown(self, countdown_duration):
+        self.countdown_duration = countdown_duration
         # Update the timer label every second
         if self.countdown_duration > 0:
+            if self.countdown_duration < 5: 
+                self.timer_label.configure(foreground='red')
             minutes = self.countdown_duration // 60
             seconds = self.countdown_duration % 60
             self.timer_label.configure(text="{:02d}:{:02d}".format(minutes, seconds))
             self.countdown_duration -= 1
-            self.after(1000, self.start_countdown)
+            self.after(1000, lambda: self.start_countdown(self.countdown_duration))
         else:
-            # Do something when the countdown is over
-            pass
+            if self.servicer.is_primary: 
+                self.next_question= True 
+            # self.servicer.game_started = False 
+            # self.submit_answer_button.config(state= "disabled")
+
     def vote(self, controller, option):
+            self.button1.config(state= "disabled")
+            self.button2.config(state= "disabled")
+            self.button3.config(state= "disabled")
             controller.show_frame(LeaderboardPage)
             print("Vote for option", option)
     
-        
+    def rotate_through_questions(self):  
+        for question_id, answers in self.servicer.answers_per_question.items(): 
+            self.next_question = False 
+            question_data = self.servicer._get_question_data(question_id)
+            self.question.configure(text=question_data['question'])
+            self.answer1.configure(text=answers[0]['user'])
+            self.answer2.configure(text=answers[1]['user'])
+            # TODO chat GPT answer
+            while not self.next_question:
+                pass  
+        if self.servicer.is_primary: 
+            for ip, stub in self.servicer.stubs.items():
+                print(f"Notify Scoring to {ip}") 
+                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.SCORING_START)
+                reply = stub.NotifyPlayers(notification)
+            self.servicer.scoring_started = True 
+                
+
 
 
 class LeaderboardPage(tk.Frame):
@@ -554,6 +595,10 @@ class LeaderboardPage(tk.Frame):
 
         # Center the frame in the canvas
         self.frame.place(relx=0.5, rely=0.5, anchor="center")
+
+    def update(self): 
+        pass 
+
 
 
 

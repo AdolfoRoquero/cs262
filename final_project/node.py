@@ -75,6 +75,7 @@ class QuiplashServicer(object):
 
         self.sent_answers = False
         self.timer_started = False
+        self.scoring_started = False 
 
     def setup_primary(self):
         self.primary_ip = self.ip
@@ -153,10 +154,14 @@ class QuiplashServicer(object):
         pend_players = self._get_players_pending_ans()
         if len(pend_players) == 0:
             self.logger.info(f"\tAll anwers received")
-
-            with self.voting_started_cv:
-                self.voting_started = True
-                self.voting_started_cv.notify_all()
+            self.voting_started = True 
+            for ip, stub in self.stubs.items():
+                print(f"Notify Voting to {ip}") 
+                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
+                reply = stub.NotifyPlayers(notification)
+            # with self.voting_started_cv:
+            #     self.voting_started = True
+            #     self.voting_started_cv.notify_all()
         else:
             self.logger.info(f"\tMissing answers from {request.respondent.username}")
 
@@ -173,10 +178,13 @@ class QuiplashServicer(object):
                 self.game_started_cv.notify_all()  
 
         if request.type == quiplash_pb2.GameNotification.VOTING_START: 
+
             with self.voting_started_cv:
                 self.voting_started = True 
-                self.game_started = False
                 self.voting_started_cv.notify_all()
+        
+        if request.type == quiplash_pb2.GameNotification.SCORING_START: 
+            self.scoring_started = True
         
         return quiplash_pb2.RequestReply(reply='Success', 
                                          request_status=quiplash_pb2.SUCCESS) 
