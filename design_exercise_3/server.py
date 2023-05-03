@@ -76,7 +76,7 @@ def liveness_check_thread(instance):
                     if rep_server == instance.primary_server_id: 
                        instance.primary_server_id = min([rep for rep in instance.rep_servers_config if instance.replica_is_alive[rep]])
                        instance.is_primary = instance.primary_server_id == instance.server_id 
-                       print(f"primary server changed to {instance.primary_server_id}")
+                       print(f"Primary server changed to {instance.primary_server_id}")
         time.sleep(3)
 
 class ChatAppServicer(chat_app_pb2_grpc.ChatAppServicer):

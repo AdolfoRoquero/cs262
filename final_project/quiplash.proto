@@ -57,34 +57,8 @@ service Quiplash {
   // Request to update replica state when a user VOTES for a quesiton.
   rpc Vote_StateUpdate(Vote) returns (RequestReply);
 
-
-//   // Request to list all users in the platform 
-//   // that match a given filter in ListAllRequest.
-//   rpc ListAll(ListAllRequest) returns (UserList); 
-  
-//   // Request to delete User.
-//   rpc DeleteUser(User) returns (RequestReply);
-
-//   // Request to send a message (all sending info contained in ChatMessage)
-//   rpc SendMessage(ChatMessage) returns (RequestReply);
-
-//   // Request to receive ALL pending messages for a given user. 
-//   rpc ReceiveMessage(User) returns (ChatMessageList);
-
-//   //  Request to update replica state when a new user signs up.
-//   rpc NewUser_StateUpdate(User) returns (RequestReply); 
-  
-//   //  Request to update replica state when a user is deleted.
-//   rpc DeleteUser_StateUpdate(User) returns (RequestReply); 
-
-//   // Request to update replica state when a message is sent (message enqueuing).
-//   rpc EnqueueMessage_StateUpdate(ChatMessage) returns (RequestReply); 
-  
-//   // Request to update replica state when a message is received (message dequeuing).
-//   rpc DequeueMessage_StateUpdate(User) returns (RequestReply);
-
-//   // Request sent periodically between servers to check for liveness.
-//   rpc CheckLiveness(LivenessRequest) returns (LivenessResponse);
+  // Request sent periodically between servers to check for liveness.
+  rpc CheckLiveness(LivenessRequest) returns (LivenessResponse);
 
 //   // Request sent by primary server to backup servers with the last entry logged in the primary server, returns the log diff. 
 //   rpc RebootPull(RebootRequest) returns (RebootResponse);
