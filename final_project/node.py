@@ -30,7 +30,7 @@ def delete_log_files(dir=os.getcwd()):
 
 TIME_TO_ANSWER = 20
 EMPTY_ANS_DEFAULT = "NA"
-TIMEOUT_TO_RECEIVE_VOTE = 25
+TIMEOUT_TO_RECEIVE_ALL_ANS = 60
 STATIC_QUESTIONS_DB = "questions.db"
 
 
@@ -198,7 +198,7 @@ class QuiplashServicer(object):
                     reply = self.stubs[rep_server].NewUser_StateUpdate(request, timeout=0.5)
                 except grpc.RpcError as e:
                     # self.replica_is_alive[rep_server] = False
-                    print(f"\t\t Exception: {rep_server} not alive")
+                    print(f"Exception: {rep_server} not alive on NewUser_StateUpdate")
             
             # Return existing players such that new joining players can recover the state players. 
             assignments = self.db.get('assignment')
@@ -288,35 +288,18 @@ class QuiplashServicer(object):
 
         # Add to log
         self._add_answer_to_log(request.respondent.username, request.question_id, request.answer_text)
-
         # Send State update to all replicas
         for rep_server in self.stubs:  
             try: 
                 reply = self.stubs[rep_server].UserAnswer_StateUpdate(request, timeout=0.5)
             except grpc.RpcError as e:
                 # self.replica_is_alive[rep_server] = False
-                print(f"\t\t Exception: {rep_server} not alive")
+                print(f"Exception: {rep_server} not alive on UserAnswer_StateUpdate")
 
-        # TODO : do with execute_log
         # Persistence on DB
-        # self.add_new_answer(request.respondent.username, request.question_id, request.answer_text)
         self._execute_log()
-
-        # Check if ready to move to voting phase:
-        pend_players = self._get_players_pending_ans()
-        if len(pend_players) == 0:
-            self.logger.info(f"\tAll anwers received")
-
-            for ip, stub in self.stubs.items():
-                print(f"Notify Voting to {ip}") 
-                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
-                reply = stub.NotifyPlayers(notification)
-            
-            with self.voting_started_cv:
-                self.voting_started = True
-                self.voting_started_cv.notify_all()
-        else:
-            self.logger.info(f"\tMissing answers from {request.respondent.username}")
+        # Triggers voting phase if all answers have been received
+        self._trigger_voting()
 
         return quiplash_pb2.RequestReply(reply = 'Success', 
                                          request_status=quiplash_pb2.SUCCESS)
@@ -340,7 +323,7 @@ class QuiplashServicer(object):
         self.logger.info(f"NOTIFICATION RECV: Received Notification at {self.username}")
         if request.type == quiplash_pb2.GameNotification.GAME_START: 
             with self.game_started_cv:
-                self.game_started = True 
+                self.game_started = True
                 self.game_started_cv.notify_all()  
 
         if request.type == quiplash_pb2.GameNotification.VOTING_START: 
@@ -384,7 +367,7 @@ class QuiplashServicer(object):
                 reply = self.stubs[rep_server].Vote_StateUpdate(request, timeout=0.5)
             except grpc.RpcError as e:
                 # self.replica_is_alive[rep_server] = False
-                print(f"\t\t Exception: {rep_server} not alive")
+                print(f"Exception: {rep_server} not alive on Vote_StateUpdate")
 
         self._execute_log()     
         return quiplash_pb2.RequestReply(reply='Success', 
@@ -401,6 +384,24 @@ class QuiplashServicer(object):
 
         return quiplash_pb2.RequestReply(reply='Success', 
                                          request_status=quiplash_pb2.SUCCESS) 
+
+
+
+    def _trigger_voting(self):
+        # Check if ready to move to voting phase:
+        pend_players = self._get_players_pending_ans()
+        if len(pend_players) == 0:
+            self.logger.info(f"\tAll anwers received")
+            for ip, stub in self.stubs.items():
+                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
+                reply = stub.NotifyPlayers(notification)
+            
+            with self.voting_started_cv:
+                self.voting_started = True
+                self.voting_started_cv.notify_all()
+        else:
+            self.logger.info(f"\tMissing answers from {pend_players}")
+
 
     # --------------------------------------------------------------------
     # GETTER HELPER FUNCTIONS
@@ -574,10 +575,9 @@ class QuiplashServicer(object):
             game_host_address = input("Enter game code: ")
             while not game_host_address or len(game_host_address.split(':')) != 2:
                 print("\nCode must be of form `<ip_address>:<port>` \n")
-                game_host_address = input("Enter game code: ")
+                game_host_address = input("Enter game code: ").strip().lower()
             
             # TODO Check Liveness for correct ip
-
             self.primary_ip, self.primary_port = game_host_address.split(':')
             self.primary_address = game_host_address
             self.create_stub(self.primary_ip, self.primary_port)
@@ -595,16 +595,10 @@ class QuiplashServicer(object):
                     self._add_new_user_to_log(self.username, self.ip, self.port)
                     self._execute_log()
                     break
-                
                 else:
-                    print("username",username)
-                    print("ip", self.ip)
-                    print("self.port", self.port)
-
                     user = quiplash_pb2.User(username=username, 
                                             ip_address=self.ip, 
                                             port=self.port)
-                    
                     reply = self.stubs[self.primary_address].JoinGame(user)
                     if reply.request_status == quiplash_pb2.FAILED:
                         print(f"Username {username} taken, try again")
@@ -615,81 +609,23 @@ class QuiplashServicer(object):
 
                         self._add_new_user_to_log(self.username, self.ip, self.port)
 
-                        print(f" {len(reply.existing_players)} Previously Existing Players")
                         # Add all already existing players
                         for player in reply.existing_players:
                             self._add_new_user_to_log(player.username, player.ip_address, player.port)
-                            print("\t", player.username)
                         self._execute_log()
                         break
         
-
+        #
+        # QUESTION SETUP PHASE
+        #
         if not self.is_primary: 
             # Wait until game phase starts
             with self.game_started_cv:
                 while not self.game_started:
                     self.game_started_cv.wait()
-
-            print("Time to answer questions!!")
-            for idx, question in enumerate(self.unanswered_questions):
-                print(f"\n\nQuestion {idx+1}/{len(self.unanswered_questions)}    Topic: {question['category']}")
-                print(f"{question['question']}\n")
-                print(f"You have {TIME_TO_ANSWER} seconds to answer!\n")
-                
-                answered = False
-                try:
-                    # Take timed input using inputimeout() function
-                    answer_text = inputimeout(prompt='Your Answer:\n', timeout=TIME_TO_ANSWER)
-                    answered = True
-                except Exception:
-                    """Code will enter this code regardless of timeout or not"""
-                    if not answered:
-                        print("You ran out of time! Moving to next question\n")
-                
-                if answered:
-                    respondent = quiplash_pb2.User(username=self.username)
-                    grpc_answer = quiplash_pb2.Answer(respondent=respondent, 
-                                                      answer_text=answer_text, 
-                                                      question_id=question['question_id']) 
-                    reply = self.stubs[self.primary_address].SendAnswer(grpc_answer)
-            
-            # Wait until voting phase starts (Queue is given by Notification from Server)
-            with self.voting_started_cv:
-                while not self.voting_started:
-                    self.voting_started_cv.wait() 
-
-            print("\n\n\nLet's Vote for funniest answer\n\n\n")
-            for idx, question_id in enumerate(self.answers_per_question):
-                question_info = self._get_question_data(question_id)
-                print(f"Question {idx}:\n")
-                print(f"Prompt {question_info['question']}\n\n")
-                users_with_answer = []
-                for ans_idx, answer in enumerate(self.answers_per_question[question_id]):
-                    print(f"Answer {answer['user']} :{answer['answer']}")
-                    users_with_answer.append(answer['user'])
-                
-                answered = False
-                try:
-                    # Take timed input using inputimeout() function
-                    pref_user = inputimeout(prompt='Your favorite answer is:\n', timeout=TIME_TO_ANSWER)
-                    answered = True
-                except Exception:
-                    """Code will enter this code regardless of timeout or not"""
-                    if not answered:
-                        print("You ran out of time! Moving to next question\n")
-                
-                if answered and (pref_user in users_with_answer):
-                    voter = quiplash_pb2.User(username=self.username)
-                    votee = quiplash_pb2.User(username=pref_user)
-                    grpc_vote = quiplash_pb2.Vote(voter=voter, 
-                                                  votee=votee,
-                                                  question_id=question_id)
-                    reply = self.stubs[self.primary_address].SendVote(grpc_vote)
-                       
         else:
             print(f"\n\t\t\t Let others know your code !! \n \t\t\t{self.address} \n")
             print("\n Once all players have joined the room, press enter to start game \n")
-
             while True: 
                 start_game = input("")
                 if start_game == '': 
@@ -703,6 +639,13 @@ class QuiplashServicer(object):
                     self._add_question_ass_to_log(username, question_id)
                     # TODO RUN with execute log
                     self.add_question_ass(username, question_id)
+                    
+                    # Add questions to local Client storage
+                    if player_address == self.address:
+                        question_prompt = self.db.dget("question_prompt", question_id)
+                        question_prompt['question_id'] = question_id
+                        self.unanswered_questions.append(question_prompt)
+
             # 
             # Send Assigned Questions to players
             # 
@@ -710,6 +653,9 @@ class QuiplashServicer(object):
                 player_questions = assigned_questions[address]
                 grpc_question_list = self._get_questions_as_grpc_list(player_questions, self.username)
                 reply = stub.SendQuestions(quiplash_pb2.QuestionList(question_list=grpc_question_list))
+
+            
+
 
             # State Update for all Client Stubs with the assigned questions for all users
             all_question_list = []
@@ -720,22 +666,73 @@ class QuiplashServicer(object):
             for stub in self.stubs:
                 state_update_reply = self.stubs[stub].QuestionAssignment_StateUpdate(grpc_all_question_list)
 
-            game_start_text = "Starting the game. Ready... Set.... QUIPLASH"
-            print(f"\n {game_start_text} \n")
-
             self.game_started = True 
             # notifies other players game will begin 
             for ip, stub in self.stubs.items(): 
-                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START, text=game_start_text)
+                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START)
                 reply = stub.NotifyPlayers(notification)
-            
 
+
+        #
+        # ANSWERING PHASE
+        #
+        print("Time to answer questions!!")
+        print(f"\nReady... Set.... QUIPLASH \n")
+        for idx, question in enumerate(self.unanswered_questions):
+            print(f"\n\nQuestion {idx+1}/{len(self.unanswered_questions)}    Topic: {question['category']}")
+            print(f"{question['question']}\n")
+            print(f"You have {TIME_TO_ANSWER} seconds to answer!\n")
+            
+            answered = False
+            try:
+                # Take timed input using inputimeout() function
+                answer_text = inputimeout(prompt='Your Answer:\n', timeout=TIME_TO_ANSWER)
+                answered = True
+            except Exception:
+                """Code will enter this code regardless of timeout or not"""
+                if not answered:
+                    print("You ran out of time! Moving to next question\n")
+            
+            if answered:
+                if not self.is_primary:
+                    # Secondary nodes must SEND their answers to the primary node
+                    respondent = quiplash_pb2.User(username=self.username)
+                    grpc_answer = quiplash_pb2.Answer(respondent=respondent, 
+                                                        answer_text=answer_text, 
+                                                        question_id=question['question_id']) 
+                    reply = self.stubs[self.primary_address].SendAnswer(grpc_answer)
+                
+                else:
+                    # Primary node must UPDATE LOCAL STORAGE and send UPDATE to others
+                    # Add to log
+                    self._add_answer_to_log(self.username, question['question_id'], answer_text)
+                    # Send State update to all replicas
+                    for rep_server in self.stubs:  
+                        try: 
+                            reply = self.stubs[rep_server].UserAnswer_StateUpdate(request, timeout=0.5)
+                        except grpc.RpcError as e:
+                            # self.replica_is_alive[rep_server] = False
+                            print(f"Exception: {rep_server} not alive on UserAnswer_StateUpdate")
+                    # Persistence on DB
+                    self._execute_log()
+                    # Triggers voting phase if all answers have been received
+                    self._trigger_voting()
+
+        #
+        # VOTING SETUP PHASE
+        #
+        if not self.is_primary: 
+            # Wait until voting phase starts (Queue is given by Notification from Server)
+            with self.voting_started_cv:
+                while not self.voting_started:
+                    self.voting_started_cv.wait() 
+               
+        else:
             # Wait until voting started flag is set to True if all answers have been received or it timed out
             with self.voting_started_cv:
                 while not self.voting_started:
-                    self.voting_started_cv.wait(timeout=TIMEOUT_TO_RECEIVE_VOTE)
+                    self.voting_started_cv.wait(timeout=TIMEOUT_TO_RECEIVE_ALL_ANS)
                     self.voting_started = True
-
             # 
             # Send Answers from players to players
             #            
@@ -748,8 +745,37 @@ class QuiplashServicer(object):
             for ip, stub in self.stubs.items():
                 notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
                 reply = stub.NotifyPlayers(notification)
+
+        #
+        # VOTING PHASE
+        #           
+        print("\n\n\nLet's Vote for funniest answer\n\n\n")
+        for idx, question_id in enumerate(self.answers_per_question):
+            question_info = self._get_question_data(question_id)
+            print(f"Question {idx}:\n")
+            print(f"Prompt {question_info['question']}\n\n")
+            users_with_answer = []
+            for ans_idx, answer in enumerate(self.answers_per_question[question_id]):
+                print(f"Answer {answer['user']} :{answer['answer']}")
+                users_with_answer.append(answer['user'])
             
-        pass
+            answered = False
+            try:
+                # Take timed input using inputimeout() function
+                pref_user = inputimeout(prompt='Your favorite answer is:\n', timeout=TIME_TO_ANSWER)
+                answered = True
+            except Exception:
+                """Code will enter this code regardless of timeout or not"""
+                if not answered:
+                    print("You ran out of time! Moving to next question\n")
+            
+            if answered and (pref_user in users_with_answer):
+                voter = quiplash_pb2.User(username=self.username)
+                votee = quiplash_pb2.User(username=pref_user)
+                grpc_vote = quiplash_pb2.Vote(voter=voter, 
+                                                votee=votee,
+                                                question_id=question_id)
+                reply = self.stubs[self.primary_address].SendVote(grpc_vote)
      
 
 def serve(port):
@@ -774,13 +800,4 @@ if __name__ == '__main__':
     servers = [1, 2, 3, 4, 5, 6, 7, 8]
     parser.add_argument("-P", "--port", help="Port of where server will be running", type=str, default=os.environ['QUIPLASH_SERVER_PORT'])
     args = parser.parse_args()
-        #     # Wait until voting started flag is set to True
-        #     # This flag is set to True once all answers have been received or the has been a timeout
-        #     if self.voting_started:
-        #         # notifies other players voting phase begins
-        #         for ip, stub in self.stubs.items():
-        #             print(f"Notify Voting to {ip}") 
-        #             notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
-        #             reply = stub.NotifyPlayers(notification)
-
     serve(args.port) 
