@@ -41,14 +41,16 @@ class GameNotification(_message.Message):
     def __init__(self, type: _Optional[_Union[GameNotification.NotificationType, str]] = ..., text: _Optional[str] = ...) -> None: ...
 
 class JoinGameReply(_message.Message):
-    __slots__ = ["num_players", "request_status", "rerouted"]
+    __slots__ = ["existing_players", "num_players", "request_status", "rerouted"]
+    EXISTING_PLAYERS_FIELD_NUMBER: _ClassVar[int]
     NUM_PLAYERS_FIELD_NUMBER: _ClassVar[int]
     REQUEST_STATUS_FIELD_NUMBER: _ClassVar[int]
     REROUTED_FIELD_NUMBER: _ClassVar[int]
+    existing_players: _containers.RepeatedCompositeFieldContainer[User]
     num_players: int
     request_status: RequestStatus
     rerouted: str
-    def __init__(self, num_players: _Optional[int] = ..., request_status: _Optional[_Union[RequestStatus, str]] = ..., rerouted: _Optional[str] = ...) -> None: ...
+    def __init__(self, num_players: _Optional[int] = ..., request_status: _Optional[_Union[RequestStatus, str]] = ..., rerouted: _Optional[str] = ..., existing_players: _Optional[_Iterable[_Union[User, _Mapping]]] = ...) -> None: ...
 
 class LivenessRequest(_message.Message):
     __slots__ = []
@@ -61,14 +63,16 @@ class LivenessResponse(_message.Message):
     def __init__(self, status: _Optional[str] = ...) -> None: ...
 
 class Question(_message.Message):
-    __slots__ = ["question_id", "question_text", "topic"]
+    __slots__ = ["destinatary", "question_id", "question_text", "topic"]
+    DESTINATARY_FIELD_NUMBER: _ClassVar[int]
     QUESTION_ID_FIELD_NUMBER: _ClassVar[int]
     QUESTION_TEXT_FIELD_NUMBER: _ClassVar[int]
     TOPIC_FIELD_NUMBER: _ClassVar[int]
+    destinatary: User
     question_id: str
     question_text: str
     topic: str
-    def __init__(self, question_id: _Optional[str] = ..., question_text: _Optional[str] = ..., topic: _Optional[str] = ...) -> None: ...
+    def __init__(self, question_id: _Optional[str] = ..., question_text: _Optional[str] = ..., topic: _Optional[str] = ..., destinatary: _Optional[_Union[User, _Mapping]] = ...) -> None: ...
 
 class QuestionList(_message.Message):
     __slots__ = ["question_list"]
