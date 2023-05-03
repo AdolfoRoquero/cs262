@@ -144,21 +144,48 @@ class QuiplashServicer(object):
         return quiplash_pb2.RequestReply(reply = 'Success', 
                                                  request_status=quiplash_pb2.SUCCESS)
     
-    def SendAnswer(self, request, context):
+    # def SendAnswer(self, request, context):
+    #     """Request from other nodes to primary node with answer to question 
+    #     """
+    #     self.logger.info(f"ANSWERS RECV: Received Anwers from {request.respondent.username}")
+    #     self.add_new_answer(request.respondent.username, request.question_id, request.answer_text)
+
+    #     # Check if ready to move to voting phase:
+    #     pend_players = self._get_players_pending_ans()
+    #     if len(pend_players) == 0:
+    #         self.logger.info(f"\tAll anwers received")
+    #         self.voting_started = True 
+    #         for ip, stub in self.stubs.items():
+    #             print(f"Notify Voting to {ip}") 
+    #             notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
+    #             reply = stub.NotifyPlayers(notification)
+    #         # with self.voting_started_cv:
+    #         #     self.voting_started = True
+    #         #     self.voting_started_cv.notify_all()
+    #     else:
+    #         self.logger.info(f"\tMissing answers from {request.respondent.username}")
+
+    #     return quiplash_pb2.RequestReply(reply = 'Success', 
+    #                                      request_status=quiplash_pb2.SUCCESS)
+
+    def SendAnswers(self, request, context):
         """Request from other nodes to primary node with answer to question 
         """
-        self.logger.info(f"ANSWERS RECV: Received Anwers from {request.respondent.username}")
-        self.add_new_answer(request.respondent.username, request.question_id, request.answer_text)
+        answers = request.answer_list
+        self.logger.info(f"ANSWERS RECV: Received Anwers from {answers[0].respondent.username}")
+        for answer in answers: 
+            self.add_new_answer(answer.respondent.username, answer.question_id, answer.answer_text)
 
         # Check if ready to move to voting phase:
         pend_players = self._get_players_pending_ans()
         if len(pend_players) == 0:
             self.logger.info(f"\tAll anwers received")
             self.voting_started = True 
+            notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
             for ip, stub in self.stubs.items():
                 print(f"Notify Voting to {ip}") 
-                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
                 reply = stub.NotifyPlayers(notification)
+            print("Notified everyone")
             # with self.voting_started_cv:
             #     self.voting_started = True
             #     self.voting_started_cv.notify_all()

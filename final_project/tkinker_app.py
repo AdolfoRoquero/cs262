@@ -21,6 +21,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageTk
 # LARGEFONT =("Verdana", 35, "bold")
 MEDFONT =("Verdana", 16, "bold")
 
+def trace_callback(frame, event, arg):
+    print(event, frame.f_code.co_name, frame.f_lineno)
 
 class tkinterApp(tk.Tk):
      
@@ -28,6 +30,8 @@ class tkinterApp(tk.Tk):
     def __init__(self, port, *args, **kwargs):         
         # __init__ function for class Tk
         tk.Tk.__init__(self, *args, **kwargs)
+
+        
 
         # creating a container
         container = tk.Frame(self) 
@@ -418,21 +422,23 @@ class QuestionPage(tk.Frame):
                 self.servicer.add_new_answer(respondent.username, question2_id, answer2) 
 
             else: 
+                print("Sending answers to primary")
                 grpc_answer1 = quiplash_pb2.Answer(respondent=respondent, 
                                                 answer_text=answer1, 
                                                 question_id=question1_id) 
-                reply = self.servicer.stubs[self.servicer.primary_address].SendAnswer(grpc_answer1)
                 grpc_answer2 = quiplash_pb2.Answer(respondent=respondent, 
                                                 answer_text=answer2, 
                                                 question_id=question2_id) 
-                reply = self.servicer.stubs[self.servicer.primary_address].SendAnswer(grpc_answer2)
+                answers = quiplash_pb2.AnswerList(answer_list=[grpc_answer1, grpc_answer2])
+                reply = self.servicer.stubs[self.servicer.primary_address].SendAnswers(answers)
+                print(reply.request_status)
 
     def update(self): 
         self.question1.config(text=self.servicer.unanswered_questions[0]['question'])
         self.question2.config(text=self.servicer.unanswered_questions[1]['question'])
         if not self.servicer.timer_started and self.servicer.game_started: 
             self.servicer.timer_started = True 
-            self.start_countdown(15)
+            self.start_countdown(60)
 
 
 

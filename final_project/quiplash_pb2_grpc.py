@@ -25,9 +25,9 @@ class QuiplashStub(object):
                 request_serializer=quiplash__pb2.QuestionList.SerializeToString,
                 response_deserializer=quiplash__pb2.RequestReply.FromString,
                 )
-        self.SendAnswer = channel.unary_unary(
-                '/chatapp.Quiplash/SendAnswer',
-                request_serializer=quiplash__pb2.Answer.SerializeToString,
+        self.SendAnswers = channel.unary_unary(
+                '/chatapp.Quiplash/SendAnswers',
+                request_serializer=quiplash__pb2.AnswerList.SerializeToString,
                 response_deserializer=quiplash__pb2.RequestReply.FromString,
                 )
         self.SendVote = channel.unary_unary(
@@ -65,8 +65,10 @@ class QuiplashServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def SendAnswer(self, request, context):
+    def SendAnswers(self, request, context):
         """Request from OTHER-NODES to PRIMARY node with answer to question 
+        rpc SendAnswer(Answer) returns (RequestReply); 
+
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -106,9 +108,9 @@ def add_QuiplashServicer_to_server(servicer, server):
                     request_deserializer=quiplash__pb2.QuestionList.FromString,
                     response_serializer=quiplash__pb2.RequestReply.SerializeToString,
             ),
-            'SendAnswer': grpc.unary_unary_rpc_method_handler(
-                    servicer.SendAnswer,
-                    request_deserializer=quiplash__pb2.Answer.FromString,
+            'SendAnswers': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendAnswers,
+                    request_deserializer=quiplash__pb2.AnswerList.FromString,
                     response_serializer=quiplash__pb2.RequestReply.SerializeToString,
             ),
             'SendVote': grpc.unary_unary_rpc_method_handler(
@@ -172,7 +174,7 @@ class Quiplash(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def SendAnswer(request,
+    def SendAnswers(request,
             target,
             options=(),
             channel_credentials=None,
@@ -182,8 +184,8 @@ class Quiplash(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/chatapp.Quiplash/SendAnswer',
-            quiplash__pb2.Answer.SerializeToString,
+        return grpc.experimental.unary_unary(request, target, '/chatapp.Quiplash/SendAnswers',
+            quiplash__pb2.AnswerList.SerializeToString,
             quiplash__pb2.RequestReply.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
