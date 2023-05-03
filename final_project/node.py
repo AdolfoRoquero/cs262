@@ -425,9 +425,6 @@ class QuiplashServicer(object):
         pending_users = set()
         assignments = self.db.get('assignment')
         for user in assignments:
-            # TODO: Remover for primary to take part
-            if user == self.username:
-                continue
             for question in assignments[user]['questions']:
                 if assignments[user]['questions'][question]['answer'] == EMPTY_ANS_DEFAULT:
                     pending_users.add(user)
@@ -654,9 +651,6 @@ class QuiplashServicer(object):
                 grpc_question_list = self._get_questions_as_grpc_list(player_questions, self.username)
                 reply = stub.SendQuestions(quiplash_pb2.QuestionList(question_list=grpc_question_list))
 
-            
-
-
             # State Update for all Client Stubs with the assigned questions for all users
             all_question_list = []
             for address, question_ids in assigned_questions.items():
@@ -709,7 +703,12 @@ class QuiplashServicer(object):
                     # Send State update to all replicas
                     for rep_server in self.stubs:  
                         try: 
-                            reply = self.stubs[rep_server].UserAnswer_StateUpdate(request, timeout=0.5)
+                            respondent = quiplash_pb2.User(username=self.username)
+                            grpc_answer = quiplash_pb2.Answer(respondent=respondent, 
+                                                              answer_text=answer_text, 
+                                                              question_id=question['question_id']) 
+                            
+                            reply = self.stubs[rep_server].UserAnswer_StateUpdate(grpc_answer, timeout=0.5)
                         except grpc.RpcError as e:
                             # self.replica_is_alive[rep_server] = False
                             print(f"Exception: {rep_server} not alive on UserAnswer_StateUpdate")
@@ -738,6 +737,7 @@ class QuiplashServicer(object):
             #            
             grpc_answers = self._get_answers_as_grpc()
             for ip, stub in self.stubs.items():
+                print("")
                 stub.SendAllAnswers(grpc_answers)
             #
             # Notifies other players voting phase begins
@@ -749,14 +749,14 @@ class QuiplashServicer(object):
         #
         # VOTING PHASE
         #           
-        print("\n\n\nLet's Vote for funniest answer\n\n\n")
+        print(f"\n\n\nLet's Vote for funniest answer out of {len(self.answers_per_question)}\n\n\n")
         for idx, question_id in enumerate(self.answers_per_question):
             question_info = self._get_question_data(question_id)
             print(f"Question {idx}:\n")
             print(f"Prompt {question_info['question']}\n\n")
             users_with_answer = []
             for ans_idx, answer in enumerate(self.answers_per_question[question_id]):
-                print(f"Answer {answer['user']} :{answer['answer']}")
+                print(f"Answer {answer['user']} : {answer['answer']}")
                 users_with_answer.append(answer['user'])
             
             answered = False
