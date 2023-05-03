@@ -215,7 +215,7 @@ class QuiplashServicer(object):
             elif entry['action_type'] == LogActionType.ANSWER_RECV.value:
                 self.add_new_answer(params['username'],params['question_id'],params['answer_text'])
             elif entry['action_type'] == LogActionType.VOTE_RECV.value:
-                self.add_new_vote(params['votee'],params['question_id'])
+                self.add_new_vote(params['voter'], params['votee'],params['question_id'])
             else:
                 raise ValueError("Incorrect action type")
             # move pointer since you have executed the log command 
@@ -438,7 +438,6 @@ class QuiplashServicer(object):
         pend_players = self._get_players_pending_ans()
         if len(pend_players) == 0:
             self.logger.info(f"\tAll anwers received")
-            
             with self.voting_started_prim_cv:
                 self.voting_started_prim = True
                 self.voting_started_prim_cv.notify_all()
@@ -449,7 +448,7 @@ class QuiplashServicer(object):
         """
         Trigger voting if all answers have been received
         """
-        pend_votes = self._get_num_pending_votes()
+        pend_votes, active_user_votes = self._get_num_pending_votes()
         if pend_votes == 0:
             self.logger.info(f"\tAll votes received")
             with self.vote_tallying_started_cv:
@@ -493,12 +492,25 @@ class QuiplashServicer(object):
         """
         Checks if an answer has been received for all assigned questions to all users
         """
-        assignments = self.db.get('assignment')
         total_votes = 0 
-        for user in assignments:
-            for question in assignments[user]['questions']:
-                total_votes += assignments[user]['questions'][question]['vote_count']
-        return (self.num_players ** 2) - total_votes
+        assignments = self.db.get('assignment')
+
+        # Compute difference between (# of active users)^2 vs # of votes from active users
+        all_active_users = [self.address_to_user[addr] for addr in self.replica_is_alive if self.replica_is_alive[addr]]
+        all_active_users.append(self.username)
+        expected_votes = len(all_active_users)**2
+        active_user_votes = 0
+        for user_ass in assignments:
+            address = f"{assignments[user_ass]['ip']}:{assignments[user_ass]['port']}"
+            for question in assignments[user_ass]['questions']:
+                total_votes += assignments[user_ass]['questions'][question]['vote_count']
+                # All users should have voted 
+                for user in assignments[user_ass]['questions'][question]['voters']:
+                    if user in all_active_users:
+                        active_user_votes += 1
+                
+
+        return (self.num_players ** 2) - total_votes, expected_votes-active_user_votes
     
     def _get_answers_as_grpc(self):
         """
@@ -548,7 +560,7 @@ class QuiplashServicer(object):
 
     def add_question_ass(self, username, question_id):
         temp = self.db.get("assignment")
-        temp[username]['questions'][question_id] = {"answer": EMPTY_ANS_DEFAULT, "vote_count":0}
+        temp[username]['questions'][question_id] = {"answer": EMPTY_ANS_DEFAULT, "vote_count":0, "voters":[]}
         self.db.set("assignment", temp)
 
     def add_new_answer(self, username, question_id, answer_text):
@@ -556,10 +568,11 @@ class QuiplashServicer(object):
         temp[username]['questions'][question_id]['answer'] = answer_text
         self.db.set("assignment", temp)
 
-    def add_new_vote(self, votee, question_id):
+    def add_new_vote(self, voter, votee, question_id):
         temp = self.db.get('assignment')
         temp[votee]['questions'][question_id]['vote_count'] += 1
-        self.db.set('assignment', temp)  
+        temp[votee]['questions'][question_id]['voters'].append(voter)
+        self.db.set('assignment', temp)
 
     # --------------------------------------------------------------------
     # ADD TO LOG 
@@ -773,14 +786,16 @@ class QuiplashServicer(object):
                 username = self.address_to_user[address]
                 all_question_list += self._get_questions_as_grpc_list(question_ids, username)
             grpc_all_question_list = quiplash_pb2.QuestionList(question_list=all_question_list)
-            for stub in self.stubs:
-                state_update_reply = self.stubs[stub].QuestionAssignment_StateUpdate(grpc_all_question_list)
+            for ip, stub in self.stubs.items():
+                if self.replica_is_alive[ip]:
+                    state_update_reply = stub.QuestionAssignment_StateUpdate(grpc_all_question_list)
 
             self.game_started = True 
             # notifies other players game will begin 
             for ip, stub in self.stubs.items(): 
-                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START)
-                reply = stub.NotifyPlayers(notification)
+                if self.replica_is_alive[ip]:
+                    notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START)
+                    reply = stub.NotifyPlayers(notification)
 
 
         #
@@ -949,7 +964,7 @@ class QuiplashServicer(object):
                             
                             reply = self.stubs[rep_server].Vote_StateUpdate(grpc_vote, timeout=0.5)
                         except grpc.RpcError as e:
-                            # self.replica_is_alive[rep_server] = False
+                            self.replica_is_alive[rep_server] = False
                             print(f"Exception: {rep_server} not alive on Vote_StateUpdate")
 
                     # Persistance on db 
