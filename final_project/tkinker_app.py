@@ -29,7 +29,6 @@ class tkinterApp(tk.Tk):
         # __init__ function for class Tk
         tk.Tk.__init__(self, *args, **kwargs)
 
-        self.set_style()
         # creating a container
         container = tk.Frame(self) 
         container.pack(side = "top", fill = "both", expand = True)
@@ -56,7 +55,6 @@ class tkinterApp(tk.Tk):
   
             frame.grid(row = 0, column = 0, sticky ="nsew")
         self.show_frame(LandingPage)
-
   
     # to display the current frame passed as
     # parameter
@@ -64,24 +62,9 @@ class tkinterApp(tk.Tk):
         frame = self.frames[cont]
         frame.update()
         frame.tkraise()
-
-    def set_style(self):
-        # Create a custom style
-        style = ttk.Style()
-
-        # Set the background color of all widgets to white
-        style.configure('TFrame', background='white')
-        style.configure('TLabel', background='white')
-        style.configure('TButton', background='white')
-        style.configure('TCheckbutton', background='white')
-        style.configure('TRadiobutton', background='white')
-        style.configure('TEntry', background='white')
-
-        # Set the foreground color of all Text and Entry widgets to black
-        style.map('TEntry', foreground=[('active', 'black'), ('disabled', 'gray')])
-        style.map('TText', foreground=[('active', 'black'), ('disabled', 'gray')])
-
     
+    # start the periodic update loop
+
     def update(self):
         if self.servicer.game_started and not self.servicer.sent_answers and not self.servicer.voting_started and not self.servicer.scoring_started: 
             self.show_frame(QuestionPage)
@@ -91,10 +74,6 @@ class tkinterApp(tk.Tk):
             self.show_frame(VotingPage)
         elif self.servicer.game_started and self.servicer.sent_answers and self.servicer.voting_started and self.servicer.scoring_started:
             self.show_frame(LeaderboardPage)
-        
-        # else: 
-        #     print(self.servicer.game_started, self.servicer.sent_answers, self.servicer.voting_started, self.servicer.scoring_started)
-            
         super().update() # Call the parent class's update method
     
     async def serve_grpc(self):
@@ -113,7 +92,7 @@ class tkinterApp(tk.Tk):
         asyncio.create_task(self.serve_grpc())
         while True: 
             self.update() # replicating main loop functionality tkinter 
-            await asyncio.sleep(0.1)     
+            await asyncio.sleep(0.5)     
 
         
 
@@ -340,7 +319,7 @@ class WaitingPage(tk.Frame):
                 reply = stub.NotifyPlayers(notification)
             
             self.controller.show_frame(QuestionPage) 
-            
+    
     def update(self): 
         text =f"Share the code with your friends for them to join the game! {self.servicer.primary_address}"
         self.share_code_text.config(text=text)
@@ -421,8 +400,8 @@ class QuestionPage(tk.Frame):
                         print(f"Notify Voting to {ip}") 
                         notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
                         reply = stub.NotifyPlayers(notification)
+                print("Notified everyone, got here")
                 self.servicer.sent_answers = True 
-                self.controller.switch_frames()
 
 
     def submit_answers(self):
