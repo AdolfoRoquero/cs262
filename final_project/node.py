@@ -28,9 +28,9 @@ def delete_log_files(dir=os.getcwd()):
 
 
 
-TIME_TO_ANSWER = 10
+TIME_TO_ANSWER = 20
 EMPTY_ANS_DEFAULT = "NA"
-TIMEOUT_TO_RECEIVE_ANS = 25
+TIMEOUT_TO_RECEIVE_VOTE = 25
 STATIC_QUESTIONS_DB = "questions.db"
 
 
@@ -92,8 +92,21 @@ class QuiplashServicer(object):
         self.primary_address = f"{self.ip}:{self.port}"
         self.is_primary = True  
     
-    def setup_secondary(self):
-        pass
+    def create_stub(self, node_ip_address, node_port):
+        address = f"{node_ip_address}:{node_port}"
+        if address in self.stubs.keys():
+            self.logger.error(f"ERROR: Stub already exists")
+        else: 
+            channel = grpc.insecure_channel(address)
+            stub = quiplash_pb2_grpc.QuiplashStub(channel)
+            try:
+                grpc.channel_ready_future(channel).result(timeout=2)
+                self.stubs[address] = stub 
+                self.logger.info(f"STUB CREATED: Created stub to {address}")
+                return True
+            except grpc.FutureTimeoutError:
+                self.logger.error(f"ERROR: Failed to connect to address {address}")
+                return False
 
     def _initialize_storage(self, dir=os.getcwd()):
         """
@@ -125,10 +138,7 @@ class QuiplashServicer(object):
         self.db.set('question_prompt', question_prompt_db.get('question_prompt'))
 
 
-        #
-        # Pending log for replication
-        #
-        
+        # Pending log (for replication)
         # Delete previous pending log
         if self.pend_log_filename in os.listdir(dir):
             os.remove(self.pend_log_filename)
@@ -156,18 +166,14 @@ class QuiplashServicer(object):
             if entry['action_type'] == LogActionType.NEW_USER.value:
                 self.add_new_player(params['username'], params['ip'], params['port'])
             elif entry['action_type'] == LogActionType.QUESTION_ASS.value:
+                assert ('username' in params) and ('question_id' in params)
                 self.add_question_ass(params['username'], params['question_id'])                        
             elif entry['action_type'] == LogActionType.ANSWER_RECV.value:
                 self.add_new_answer(params['username'],params['question_id'],params['answer_text'])
             elif entry['action_type'] == LogActionType.VOTE_RECV.value:
-                self.add_new_vote(params['votee'])
-                temp = self.db.get("assignment")
-                temp[params['username']]["questions"][params['question_id']]['answer'] = params['answer_text']
-                self.db.set("assignment", temp)
-
+                self.add_new_vote(params['votee'],params['question_id'])
             else:
                 raise ValueError("Incorrect action type")
-            
             # move pointer since you have executed the log command 
             self.pend_log.set('current_ptr', self.pend_log.get('current_ptr') + 1)
 
@@ -181,6 +187,7 @@ class QuiplashServicer(object):
         else: 
             # Add to log
             self._add_new_user_to_log(request.username, request.ip_address, request.port)
+            
             for rep_server in self.stubs:
                 try: 
                     reply = self.stubs[rep_server].NewUser_StateUpdate(request, timeout=0.5)
@@ -201,9 +208,10 @@ class QuiplashServicer(object):
             # TODO execute log / add to db
             # self._execute_log()
             # Persistence Add to db
-            self.add_new_player(request.username, request.ip_address, request.port)
+            # self.add_new_player(request.username, request.ip_address, request.port)
+            self._execute_log()
 
-            print(f'New player joined {username}, {len(self._get_players())} players in the room')
+            print(f'New player joined {request.username}, {len(self._get_players())} players in the room')
 
             return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.SUCCESS,
                                               num_players=self.num_players,
@@ -223,10 +231,10 @@ class QuiplashServicer(object):
 
             self.create_stub(request.ip_address, request.port)
             
-            self.add_new_player(request.username, request.ip_address, request.port)
+            # self.add_new_player(request.username, request.ip_address, request.port)
             # TODO
             # Execute pending log entries
-            # self._execute_log()
+            self._execute_log()
 
             # TODO
             # Create new stub
@@ -261,7 +269,9 @@ class QuiplashServicer(object):
                 # Add Question to log
                 self._add_question_ass_to_log(question.destinatary.username,
                                               question.question_id)
-            # TODO Execute log
+            
+            self._execute_log()
+
         return quiplash_pb2.RequestReply(reply = 'Success', 
                                          request_status=quiplash_pb2.SUCCESS)
     
@@ -278,14 +288,14 @@ class QuiplashServicer(object):
         for rep_server in self.stubs:  
             try: 
                 reply = self.stubs[rep_server].UserAnswer_StateUpdate(request, timeout=0.5)
-                print(reply)
             except grpc.RpcError as e:
                 # self.replica_is_alive[rep_server] = False
                 print(f"\t\t Exception: {rep_server} not alive")
 
         # TODO : do with execute_log
         # Persistence on DB
-        self.add_new_answer(request.respondent.username, request.question_id, request.answer_text)
+        # self.add_new_answer(request.respondent.username, request.question_id, request.answer_text)
+        self._execute_log()
 
         # Check if ready to move to voting phase:
         pend_players = self._get_players_pending_ans()
@@ -311,7 +321,7 @@ class QuiplashServicer(object):
             # Add to log
             self._add_answer_to_log(request.respondent.username, request.question_id, request.answer_text)
             # TODO: make persistence on client
-            # self._execute_log()
+            self._execute_log()
             return quiplash_pb2.RequestReply(reply='OK', request_status=quiplash_pb2.SUCCESS)
 
     def NotifyPlayers(self, request, context):
@@ -331,10 +341,9 @@ class QuiplashServicer(object):
                                          request_status=quiplash_pb2.SUCCESS) 
     
     def SendAllAnswers(self, request, context):
-        """Request from PRIMARY node to OTHER-NODES with all answers to all questions for voting.
+        """CLIENT RUN: Request from PRIMARY node to OTHER-NODES with all answers to all questions for voting.
         """
         self.logger.info(f"ALL ANSWERS RECV: Received all anwers ({len(request.answer_list)}) at {self.username}")
-
         for answer in request.answer_list:
             self.answers_per_question[answer.question_id].append({
                 'user': answer.respondent.username, 
@@ -351,19 +360,32 @@ class QuiplashServicer(object):
         """
         self.logger.info(f"VOTE RECV: Vote received from {request.voter.username} to {request.votee.username} on question {request.question_id}")
         
-        # Tally vote count
-        temp = self.db.get('assignment')
-        temp[request.votee.username]['questions'][request.question_id]['vote_count'] += 1
-        self.db.set('assignment', temp)        
+        # Add to log
+        self._add_vote_to_log(request.voter.username, request.question_id, request.votee.username)
+
+        # Send State update to all replicas
+        for rep_server in self.stubs:  
+            try: 
+                reply = self.stubs[rep_server].Vote_StateUpdate(request, timeout=0.5)
+            except grpc.RpcError as e:
+                # self.replica_is_alive[rep_server] = False
+                print(f"\t\t Exception: {rep_server} not alive")
+
+        self._execute_log()     
         return quiplash_pb2.RequestReply(reply='Success', 
                                          request_status=quiplash_pb2.SUCCESS) 
 
     def Vote_StateUpdate(self, request, context):
         """Request to update replica state when a user VOTES for a quesiton.
         """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
+        self.logger.info(f"STATE UPDT at {self.server_id}: Vote_StateUpdate")
+        # Add to log
+        self._add_vote_to_log(request.voter.username, request.question_id, request.votee.username)
+        
+        self._execute_log()
+
+        return quiplash_pb2.RequestReply(reply='Success', 
+                                         request_status=quiplash_pb2.SUCCESS) 
 
     # --------------------------------------------------------------------
     # GETTER HELPER FUNCTIONS
@@ -440,7 +462,7 @@ class QuiplashServicer(object):
 
     def add_question_ass(self, username, question_id):
         temp = self.db.get("assignment")
-        temp[username]["questions"][question_id] = {"answer": EMPTY_ANS_DEFAULT, "vote_count":0}
+        temp[username]['questions'][question_id] = {"answer": EMPTY_ANS_DEFAULT, "vote_count":0}
         self.db.set("assignment", temp)
 
     def add_new_answer(self, username, question_id, answer_text):
@@ -489,21 +511,7 @@ class QuiplashServicer(object):
         self.pend_log.set("last_entry", last_entry + 1)
 
 
-    def create_stub(self, node_ip_address, node_port):
-        address = f"{node_ip_address}:{node_port}"
-        if address in self.stubs.keys():
-            self.logger.error(f"ERROR: Stub already exists")
-        else: 
-            channel = grpc.insecure_channel(address)
-            stub = quiplash_pb2_grpc.QuiplashStub(channel)
-            try:
-                grpc.channel_ready_future(channel).result(timeout=2)
-                self.stubs[address] = stub 
-                self.logger.info(f"STUB CREATED: Created stub to {address}")
-                return True
-            except grpc.FutureTimeoutError:
-                self.logger.error(f"ERROR: Failed to connect to address {address}")
-                return False
+    
         
             
 
@@ -557,16 +565,24 @@ class QuiplashServicer(object):
             self.primary_address = game_host_address
             self.create_stub(self.primary_ip, self.primary_port)
 
-        # JoinGame routine 
-        if not self.is_primary: 
-            while True: 
-                username = input("Enter username: ").strip().lower()
-                user = quiplash_pb2.User(username=username, 
-                                         ip_address=self.ip, 
-                                         port=self.port)
-                if not username:
-                    print("Error: username cannot be empty")
+        #
+        # JoinGame routine
+        #  
+        while True: 
+            username = input("Enter username: ").strip().lower()
+            if not username:
+                print("Error: username cannot be empty")
+            else:
+                if self.is_primary:
+                    self.username = username
+                    self._add_new_user_to_log(self.username, self.ip, self.port)
+                    self._execute_log()
+                    break
+                
                 else:
+                    user = quiplash_pb2.User(username=username, 
+                                            ip_address=self.ip, 
+                                            port=self.port)
                     reply = self.stubs[self.primary_address].JoinGame(user)
                     if reply.request_status == quiplash_pb2.FAILED:
                         print(f"Username {username} taken, try again")
@@ -575,18 +591,22 @@ class QuiplashServicer(object):
                         print(f"Successfully joined game, username {self.username}")
                         self.server_id = reply.num_players
 
+                        self._add_new_user_to_log(self.username, self.ip, self.port)
+
                         print(f" {len(reply.existing_players)} Previously Existing Players")
                         # Add all already existing players
                         for player in reply.existing_players:
                             self._add_new_user_to_log(player.username, player.ip_address, player.port)
                             print("\t", player.username)
-
+                        self._execute_log()
                         break
+        
 
+        if not self.is_primary: 
             # Wait until game phase starts
             with self.game_started_cv:
                 while not self.game_started:
-                    self.game_started_cv.wait() 
+                    self.game_started_cv.wait()
 
             print("Time to answer questions!!")
             for idx, question in enumerate(self.unanswered_questions):
@@ -617,7 +637,6 @@ class QuiplashServicer(object):
                     self.voting_started_cv.wait() 
 
             print("\n\n\nLet's Vote for funniest answer\n\n\n")
-            print(self.answers_per_question)
             for idx, question_id in enumerate(self.answers_per_question):
                 question_info = self._get_question_data(question_id)
                 print(f"Question {idx}:\n")
@@ -645,17 +664,7 @@ class QuiplashServicer(object):
                                                   question_id=question_id)
                     reply = self.stubs[self.primary_address].SendVote(grpc_vote)
                        
-        else: 
-            while True: 
-                username = input("Enter username: ").strip().lower()
-                if username in self._get_players(): 
-                    print("Error: username taken")
-                elif not username:
-                    print("Error: username cannot be empty")
-                else: 
-                    self.username = username
-                    self.add_new_player(self.username, self.ip, self.port)
-                    break
+        else:
             print(f"\n\t\t\t Let others know your code !! \n \t\t\t{self.address} \n")
             print("\n Once all players have joined the room, press enter to start game \n")
 
@@ -674,21 +683,20 @@ class QuiplashServicer(object):
                     self.add_question_ass(username, question_id)
 
             # 
-            # Send Questions to players
+            # Send Assigned Questions to players
             # 
             for address, stub in self.stubs.items(): 
-                print(f"Sending questions to {address}")
                 player_questions = assigned_questions[address]
                 grpc_question_list = self._get_questions_as_grpc_list(player_questions, self.username)
                 reply = stub.SendQuestions(quiplash_pb2.QuestionList(question_list=grpc_question_list))
 
-            # State Update for all Client Stubs
+            # State Update for all Client Stubs with the assigned questions for all users
             all_question_list = []
             for address, question_ids in assigned_questions.items():
                 username = self.address_to_user[address]
                 all_question_list += self._get_questions_as_grpc_list(question_ids, username)
             grpc_all_question_list = quiplash_pb2.QuestionList(question_list=all_question_list)
-            for stub in self.stubs: 
+            for stub in self.stubs:
                 state_update_reply = self.stubs[stub].QuestionAssignment_StateUpdate(grpc_all_question_list)
 
             game_start_text = "Starting the game. Ready... Set.... QUIPLASH"
@@ -704,12 +712,8 @@ class QuiplashServicer(object):
             # Wait until voting started flag is set to True if all answers have been received or it timed out
             with self.voting_started_cv:
                 while not self.voting_started:
-                    self.voting_started_cv.wait(timeout=TIMEOUT_TO_RECEIVE_ANS)
+                    self.voting_started_cv.wait(timeout=TIMEOUT_TO_RECEIVE_VOTE)
                     self.voting_started = True
-                    print("TIMEOUT_OCUURRED")
-            
-            print("FIN")
-            return 0
 
             # 
             # Send Answers from players to players
