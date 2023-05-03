@@ -621,30 +621,35 @@ class QuiplashServicer(object):
                 if question_votes == self.num_players: 
                     player_votes += 1 # bonus point for unanimous vote 
             self.final_score[player] = player_votes * 100
-        # print(self.final_score)
+        return 
 
-    def display_votes(self, votes):
-        print(votes)
-        players = list(votes.keys())
-        scores = list(votes.items())
+    def display_votes(self):
 
+        # Get the list of keys sorted by values
+        players = sorted(self.final_score, key=self.final_score.get, reverse=True)
+
+        # Get the list of values sorted
+        scores = sorted(self.final_score.values(), reverse=True)
+
+        
         # Calculate the width of each column
         max_player_length = max([len(player) for player in players])
         max_score_length = max([len(str(score)) for score in scores])
         column_width = max(max_player_length, max_score_length) + 2
-
+        print("\n\n")
         # Print the table header
-        print(f"| {'Player':^{column_width}} | {'Score':^{column_width}} |")
+        print(f"\t\t\t   +{'-'*(column_width+2)}+{'-'*(column_width+2)}+")
+        print(f"\t\t\t   | {'Player':^{column_width}} | {'Score':^{column_width}} |")
 
         # Print the table separator
-        print(f"+{'-'*(column_width+2)}+{'-'*(column_width+2)}+")
+        print(f"\t\t\t   +{'-'*(column_width+2)}+{'-'*(column_width+2)}+")
 
         # Print the rows
         for player, score in zip(players, scores):
-            print(f"| {player:{column_width}} | {score:{column_width}} |")
+            print(f"\t\t\t   | {player:{column_width}} | {score:{column_width}} |")
 
         # Print the table footer
-        print(f"+{'-'*(column_width+2)}+{'-'*(column_width+2)}+")
+        print(f"\t\t\t   +{'-'*(column_width+2)}+{'-'*(column_width+2)}+")
 
 
     def assign_questions(self, mode='all'):
@@ -895,7 +900,7 @@ class QuiplashServicer(object):
             # 
             for ip, stub in self.stubs.items():
                 if self.replica_is_alive[ip]:
-                    print(f"Notify voting start all ans {ip}")
+                    # print(f"Notify voting start all ans {ip}")
                     notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
                     reply = stub.NotifyPlayers(notification)
             
@@ -1005,12 +1010,12 @@ class QuiplashServicer(object):
             # Notifies other players voting phase begins
             # 
             for ip, stub in self.stubs.items():
-                print(f"Notify voting scorings will start")
+                # print(f"Notify voting scorings will start")
                 notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.SCORING_START)
                 reply = stub.NotifyPlayers(notification)
             
-        final_votes = self.tally_votes()
-        self.display_votes(final_votes) 
+        self.tally_votes()
+        self.display_votes() 
 
 def serve(port):
     IP = socket.gethostbyname(socket.gethostname())
