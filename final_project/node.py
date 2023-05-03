@@ -785,6 +785,7 @@ class QuiplashServicer(object):
             print(f"Question {idx}:\n")
             print(f"Prompt {question_info['question']}\n\n")
             users_with_answer = []
+            
             for ans_idx, answer in enumerate(self.answers_per_question[question_id]):
                 print(f"Answer {answer['user']} : {answer['answer']}")
                 users_with_answer.append(answer['user'])
@@ -806,6 +807,8 @@ class QuiplashServicer(object):
                                                 votee=votee,
                                                 question_id=question_id)
                 reply = self.stubs[self.primary_address].SendVote(grpc_vote)
+
+            
     
 
 def serve(port):
