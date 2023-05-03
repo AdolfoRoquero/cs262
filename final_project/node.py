@@ -1,6 +1,5 @@
 from copyreg import pickle
 from unicodedata import name
-from urllib import request
 import grpc 
 import quiplash_pb2
 import quiplash_pb2_grpc
@@ -10,7 +9,6 @@ import os
 import argparse
 import socket
 import threading
-from client import client_handle
 import numpy as np 
 import time
 from inputimeout import inputimeout
@@ -86,6 +84,9 @@ class QuiplashServicer(object):
 
         self.voting_started = False 
         self.voting_started_cv = threading.Condition()
+
+        self.voting_started_prim = False 
+        self.voting_started_prim_cv = threading.Condition()
 
         self.sent_answers = False
         self.timer_started = False
@@ -342,11 +343,13 @@ class QuiplashServicer(object):
         """CLIENT RUN: Request from PRIMARY node to OTHER-NODES with all answers to all questions for voting.
         """
         self.logger.info(f"ALL ANSWERS RECV: Received all anwers ({len(request.answer_list)}) at {self.username}")
+        
         for answer in request.answer_list:
+            self.logger.info(f"\t {answer.question_id}")
+
             self.answers_per_question[answer.question_id].append({
                 'user': answer.respondent.username, 
                 'answer': answer.answer_text})
-            
             self.answers.append({'user': answer.respondent.username, 
                                  'answer': answer.answer_text, 
                                  'question_id': answer.question_id})
@@ -388,17 +391,19 @@ class QuiplashServicer(object):
 
 
     def _trigger_voting(self):
-        # Check if ready to move to voting phase:
+        """
+        Trigger voting if all answers have been received
+        """
         pend_players = self._get_players_pending_ans()
         if len(pend_players) == 0:
             self.logger.info(f"\tAll anwers received")
-            for ip, stub in self.stubs.items():
-                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
-                reply = stub.NotifyPlayers(notification)
+            # for ip, stub in self.stubs.items():
+            #     notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
+            #     reply = stub.NotifyPlayers(notification)
             
-            with self.voting_started_cv:
-                self.voting_started = True
-                self.voting_started_cv.notify_all()
+            with self.voting_started_prim_cv:
+                self.voting_started_prim = True
+                self.voting_started_prim_cv.notify_all()
         else:
             self.logger.info(f"\tMissing answers from {pend_players}")
 
@@ -717,6 +722,8 @@ class QuiplashServicer(object):
                     # Triggers voting phase if all answers have been received
                     self._trigger_voting()
 
+                    
+        voting_setup_complete = False
         #
         # VOTING SETUP PHASE
         #
@@ -728,28 +735,46 @@ class QuiplashServicer(object):
                
         else:
             # Wait until voting started flag is set to True if all answers have been received or it timed out
-            with self.voting_started_cv:
-                while not self.voting_started:
-                    self.voting_started_cv.wait(timeout=TIMEOUT_TO_RECEIVE_ALL_ANS)
-                    self.voting_started = True
+            with self.voting_started_prim_cv:
+                while not self.voting_started_prim:
+                    val = self.voting_started_prim_cv.wait(timeout=TIMEOUT_TO_RECEIVE_ALL_ANS)
+                    self.voting_started_prim = True
+
             # 
             # Send Answers from players to players
             #            
             grpc_answers = self._get_answers_as_grpc()
             for ip, stub in self.stubs.items():
-                print("")
+                print(f"Sending all ans {ip}")
                 stub.SendAllAnswers(grpc_answers)
+
+
+            assignments = self.db.get("assignment")
+            for user in assignments:
+                for question_id in assignments[user]['questions']:
+                    answer = assignments[user]['questions'][question_id]['answer']
+                    self.answers_per_question[question_id].append({
+                        'user': user, 
+                        'answer': answer})
+                    self.answers.append({'user': user, 
+                                        'answer': answer, 
+                                        'question_id': question_id})
+
             #
             # Notifies other players voting phase begins
             # 
             for ip, stub in self.stubs.items():
+                print(f"Notify voting start all ans {ip}")
                 notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
                 reply = stub.NotifyPlayers(notification)
-
+            
+            voting_setup_complete = True
+        
         #
         # VOTING PHASE
-        #           
-        print(f"\n\n\nLet's Vote for funniest answer out of {len(self.answers_per_question)}\n\n\n")
+        #
+        print(f"\n\n\nLet's Vote for funniest answer out of {len(self.answers_per_question)}, {len(self.answers)}\n\n\n")
+        
         for idx, question_id in enumerate(self.answers_per_question):
             question_info = self._get_question_data(question_id)
             print(f"Question {idx}:\n")
@@ -776,7 +801,7 @@ class QuiplashServicer(object):
                                                 votee=votee,
                                                 question_id=question_id)
                 reply = self.stubs[self.primary_address].SendVote(grpc_vote)
-     
+    
 
 def serve(port):
     IP = socket.gethostbyname(socket.gethostname())
