@@ -27,8 +27,8 @@ def delete_log_files(dir=os.getcwd()):
 
 
 
-TIME_TO_ANSWER = 20
-TIME_TO_VOTE = 10
+TIME_TO_ANSWER = 40
+TIME_TO_VOTE = 15
 EMPTY_ANS_DEFAULT = "NA"
 TIMEOUT_TO_RECEIVE_ALL_ANS = 60
 STATIC_QUESTIONS_DB = "questions.db"
@@ -631,7 +631,6 @@ class QuiplashServicer(object):
         # Get the list of values sorted
         scores = sorted(self.final_score.values(), reverse=True)
 
-        
         # Calculate the width of each column
         max_player_length = max([len(player) for player in players])
         max_score_length = max([len(str(score)) for score in scores])
@@ -1016,6 +1015,7 @@ class QuiplashServicer(object):
             
         self.tally_votes()
         self.display_votes() 
+
 
 def serve(port):
     IP = socket.gethostbyname(socket.gethostname())
