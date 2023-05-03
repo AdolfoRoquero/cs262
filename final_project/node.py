@@ -217,7 +217,6 @@ class QuiplashServicer(object):
             # Persistence Add to db
             # self.add_new_player(request.username, request.ip_address, request.port)
             self._execute_log()
-
             print(f'New player joined {request.username}, {len(self._get_players())} players in the room')
 
             return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.SUCCESS,
@@ -470,6 +469,9 @@ class QuiplashServicer(object):
             question_list.append(grpc_question)
         return question_list
 
+    def _get_votes_for_player(self, username): 
+        return self.db.get("assignment")[username]
+
     # --------------------------------------------------------------------
     # ADD TO DB (Take from log to DB) 
     # --------------------------------------------------------------------
@@ -531,7 +533,9 @@ class QuiplashServicer(object):
 
 
     
-        
+    def tally_votes(self): 
+        for player in self._get_players(): 
+            print(self._get_votes_for_player(player))
             
 
     def assign_questions(self, mode='all'):
@@ -565,13 +569,14 @@ class QuiplashServicer(object):
 
     def client_handle(self):
         logo = "  ______       __    __   __  .______    ___   .______    __           ___           _______. __    __     \n /  __  \     |  |  |  | |  | |   _  \  |__ \  |   _  \  |  |         /   \         /       ||  |  |  |    \n|  |  |  |    |  |  |  | |  | |  |_)  |    ) | |  |_)  | |  |        /  ^  \       |   (----`|  |__|  |    \n|  |  |  |    |  |  |  | |  | |   ___/    / /  |   ___/  |  |       /  /_\  \       \   \    |   __   |    \n|  `--'  '--. |  `--'  | |  | |  |       / /_  |  |      |  `----. /  _____  \  .----)   |   |  |  |  |    \n \_____\_____\ \______/  |__| | _|      |____| | _|      |_______|/__/     \__\ |_______/    |__|  |__|    "
+        os.system('clear')
         print(logo)
         
-
-        host_mode = input("\n\n\n Start New Game or Join Existing (1 or 2): \n\n\n", )
+        print("\n\n\n")
+        host_mode = input("Start New Game or Join Existing (1 or 2): ")
         while host_mode not in ['1', '2']:
             print("\nOption must be `1` or `2`\n")
-            host_mode = input("Start New Game or Join Existing (1 or 2)")
+            host_mode = input("Start New Game or Join Existing (1 or 2): ")
 
         if host_mode == '1':
             # Primary Node
@@ -611,7 +616,8 @@ class QuiplashServicer(object):
                         print(f"Username {username} taken, try again")
                     else:
                         self.username = username
-                        print(f"Successfully joined game, username {self.username}")
+                        os.system('clear')
+                        print(f"\n \n \t\t\t\t Welcome {self.username}! \n \t You successfully joined the game... hang around while others join")
                         self.server_id = reply.num_players
 
                         self._add_new_user_to_log(self.username, self.ip, self.port)
@@ -631,8 +637,10 @@ class QuiplashServicer(object):
                 while not self.game_started:
                     self.game_started_cv.wait()
         else:
-            print(f"\n\t\t\t Let others know your code !! \n \t\t\t{self.address} \n")
-            print("\n Once all players have joined the room, press enter to start game \n")
+            os.system('clear')
+            print(f"\n \t\t\t\t Welcome, {self.username}! \t\t\t")
+            print(f"\n\t\t Let others know the code to join your game: \n \t\t\t\t{self.address} \n")
+            print("\n \t Once all players have joined the room, press enter to start game \n")
             while True: 
                 start_game = input("")
                 if start_game == '': 
@@ -680,17 +688,20 @@ class QuiplashServicer(object):
         #
         # ANSWERING PHASE
         #
-        print("Time to answer questions!!")
-        print(f"\nReady... Set.... QUIPLASH \n")
+        os.system('clear')
+        print("\n \t\t\t Time to answer questions! \t\t\t")
+        print(f"\n\t\t\tReady... Set.... QUIPLASH \t\t\n")
+        print('\n\n\n')
+        print(f"\t\tYou will be given 2 questions to answer in {TIME_TO_ANSWER}s each!\t\t")
+        time.sleep(3)
         for idx, question in enumerate(self.unanswered_questions):
             print(f"\n\nQuestion {idx+1}/{len(self.unanswered_questions)}    Topic: {question['category']}")
-            print(f"{question['question']}\n")
-            print(f"You have {TIME_TO_ANSWER} seconds to answer!\n")
-            
+            print(f"\n\t{question['question']}\n")
+             
             answered = False
             try:
                 # Take timed input using inputimeout() function
-                answer_text = inputimeout(prompt='Your Answer:\n', timeout=TIME_TO_ANSWER)
+                answer_text = inputimeout(prompt='Your Answer: ', timeout=TIME_TO_ANSWER)
                 answered = True
             except Exception:
                 """Code will enter this code regardless of timeout or not"""
@@ -778,34 +789,70 @@ class QuiplashServicer(object):
         #
         # VOTING PHASE
         #
-        print(f"\n\n\nLet's Vote for funniest answer out of {len(self.answers_per_question)}, {len(self.answers)}\n\n\n")
+        os.system('clear')
+        print('\t\t ___      ___ ________  _________  _______      ')
+        print('\t\t|\\  \\    /  /|\\   __  \\|\\___   ___\\\\  ___ \\     ')
+        print('\t\t\\ \\  \\  /  / | \\  \\|\\  \\|___ \\  \\_\\ \\   __/|    ')
+        print('\t\t \\ \\  \\/  / / \\ \\  \\\\\\  \\   \\ \\  \\ \\ \\  \\_|/__  ')
+        print('\t\t  \\ \\    / /   \\ \\  \\\\\\  \\   \\ \\  \\ \\ \\  \\_|\\ \\ ')
+        print('\t\t   \\ \\__/ /     \\ \\_______\\   \\ \\__\\ \\ \\_______\\')
+        print('\t\t    \\|__|/       \\|_______|    \\|__|  \\|_______|')
+        time.sleep(2)
+
+        print(f"\n\n\n \t\t\t Vote for the funniest answer! \t\t\n\n")
         
         for idx, question_id in enumerate(self.answers_per_question):
             question_info = self._get_question_data(question_id)
-            print(f"Question {idx}:\n")
-            print(f"Prompt {question_info['question']}\n\n")
+            # print(f"Question {idx}:\n")
+            print(f"\nPrompt: {question_info['question']}\n\n")
+            print("Answers: \n")
             users_with_answer = []
             for ans_idx, answer in enumerate(self.answers_per_question[question_id]):
-                print(f"Answer {answer['user']} : {answer['answer']}")
+                print(f"({ans_idx + 1}) {answer['answer']}")
                 users_with_answer.append(answer['user'])
             
             answered = False
             try:
                 # Take timed input using inputimeout() function
-                pref_user = inputimeout(prompt='Your favorite answer is:\n', timeout=TIME_TO_ANSWER)
+                fav_answer = inputimeout(prompt='Your favorite answer is: ', timeout=TIME_TO_ANSWER)                
                 answered = True
+                pref_user = users_with_answer[int(fav_answer)-1]
             except Exception:
                 """Code will enter this code regardless of timeout or not"""
                 if not answered:
-                    print("You ran out of time! Moving to next question\n")
-            
+                    print("\nYou ran out of time! Moving to next question\n")
             if answered and (pref_user in users_with_answer):
-                voter = quiplash_pb2.User(username=self.username)
-                votee = quiplash_pb2.User(username=pref_user)
-                grpc_vote = quiplash_pb2.Vote(voter=voter, 
-                                                votee=votee,
-                                                question_id=question_id)
-                reply = self.stubs[self.primary_address].SendVote(grpc_vote)
+                if not self.is_primary:
+                    voter = quiplash_pb2.User(username=self.username)
+                    votee = quiplash_pb2.User(username=pref_user)
+                    grpc_vote = quiplash_pb2.Vote(voter=voter, 
+                                                    votee=votee,
+                                                    question_id=question_id)
+                    reply = self.stubs[self.primary_address].SendVote(grpc_vote)
+                else: 
+                    # CHECK  
+                    self.logger.info(f"VOTE RECV: Vote received from {self.username} to {pref_user} on question {question_id}")
+        
+                    # Add to log
+                    self._add_vote_to_log(self.username, question_id, pref_user)
+                    self._execute_log()     
+
+        #
+        # Scoring phase 
+        # 
+        os.system('clear') 
+        print(" ________  ________  ________  ________  _______   ________      ")
+        print("|\\   ____\\|\\   ____\\|\\   __  \\|\\   __  \\|\\  ___ \\ |\\   ____\\     ")
+        print("\\ \\  \\___|\\ \\  \\___|\\ \\  \\|\\  \\ \\  \\|\\  \\ \\   __/|\\ \\  \\___|_    ")
+        print(" \\ \\_____  \\ \\  \\    \\ \\  \\\\\\  \\ \\   _  _\\ \\  \\_|/_\\ \\_____  \\   ")
+        print("  \\|____|\\  \\ \\  \\____\\ \\  \\\\\\  \\ \\  \\\\  \\\\ \\  \\_|\\ \\|____|\\  \\  ")
+        print("    ____\\_\\  \\ \\_______\\ \\_______\\ \\__\\\\ _\\\\ \\_______\\____\\_\\  \\ ")
+        print("   |\\_________\\|_______|\\|_______|\\|__|\\|__|\\|_______|\\_________\\")
+        print("   \\|_________|                                      \\|_________|")
+        time.sleep(3) 
+        self.tally_votes()
+
+                
     
 
 def serve(port):
