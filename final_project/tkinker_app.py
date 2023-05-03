@@ -95,7 +95,7 @@ class tkinterApp(tk.Tk):
         asyncio.create_task(self.serve_grpc())
         while True: 
             self.update() # replicating main loop functionality tkinter 
-            await asyncio.sleep(0.01)     
+            await asyncio.sleep(0.1)     
 
         
 
@@ -404,6 +404,7 @@ class QuestionPage(tk.Frame):
                         notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
                         reply = stub.NotifyPlayers(notification)
                 self.servicer.sent_answers = True 
+                self.controller.switch_frames()
 
 
     def submit_answers(self):
@@ -414,7 +415,7 @@ class QuestionPage(tk.Frame):
             answer1 = self.answer1.get().strip()
             answer2 = self.answer2.get().strip()
             self.servicer.sent_answers = True 
-            self.controller.show_frame(WaitingVotePage)
+            # self.controller.show_frame(WaitingVotePage)
             if self.servicer.is_primary:
                 self.servicer.add_new_answer(respondent.username, question1_id, answer1) 
                 self.servicer.add_new_answer(respondent.username, question2_id, answer2) 
@@ -428,7 +429,7 @@ class QuestionPage(tk.Frame):
                                                 answer_text=answer2, 
                                                 question_id=question2_id) 
                 reply = self.servicer.stubs[self.servicer.primary_address].SendAnswer(grpc_answer2)
-        
+
     def update(self): 
         self.question1.config(text=self.servicer.unanswered_questions[0]['question'])
         self.question2.config(text=self.servicer.unanswered_questions[1]['question'])
