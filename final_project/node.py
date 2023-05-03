@@ -28,6 +28,7 @@ def delete_log_files(dir=os.getcwd()):
 
 
 TIME_TO_ANSWER = 20
+TIME_TO_VOTE = 10
 EMPTY_ANS_DEFAULT = "NA"
 TIMEOUT_TO_RECEIVE_ALL_ANS = 60
 STATIC_QUESTIONS_DB = "questions.db"
@@ -88,6 +89,12 @@ class QuiplashServicer(object):
 
         self.voting_started_prim = False 
         self.voting_started_prim_cv = threading.Condition()
+
+        self.vote_tallying_started_prim = False 
+        self.vote_tallying_started_prim_cv = threading.Condition()
+
+        self.vote_tallying_started = False 
+        self.vote_tallying_started_cv = threading.Condition()
 
         self.sent_answers = False
         self.timer_started = False
@@ -328,13 +335,15 @@ class QuiplashServicer(object):
                 self.game_started_cv.notify_all()  
 
         if request.type == quiplash_pb2.GameNotification.VOTING_START: 
-
             with self.voting_started_cv:
                 self.voting_started = True 
                 self.voting_started_cv.notify_all()
         
         if request.type == quiplash_pb2.GameNotification.SCORING_START: 
             self.scoring_started = True
+            with self.vote_tallying_started_cv:
+                self.vote_tallying_started = True 
+                self.vote_tallying_started_cv.notify_all()
         
         return quiplash_pb2.RequestReply(reply='Success', 
                                          request_status=quiplash_pb2.SUCCESS) 
@@ -372,7 +381,9 @@ class QuiplashServicer(object):
                 # self.replica_is_alive[rep_server] = False
                 print(f"Exception: {rep_server} not alive on Vote_StateUpdate")
 
-        self._execute_log()     
+        self._execute_log() 
+        # Triggers tallying phase if all votes have been received
+        self._trigger_tallying()    
         return quiplash_pb2.RequestReply(reply='Success', 
                                          request_status=quiplash_pb2.SUCCESS) 
 
@@ -387,7 +398,6 @@ class QuiplashServicer(object):
 
         return quiplash_pb2.RequestReply(reply='Success', 
                                          request_status=quiplash_pb2.SUCCESS) 
-
 
 
     def _trigger_voting(self):
@@ -407,6 +417,19 @@ class QuiplashServicer(object):
         else:
             self.logger.info(f"\tMissing answers from {pend_players}")
 
+    def _trigger_tallying(self):
+        """
+        Trigger voting if all answers have been received
+        """
+        pend_votes = self._get_num_pending_votes()
+        if pend_votes == 0:
+            self.logger.info(f"\tAll votes received")
+            with self.vote_tallying_started_cv:
+                self.vote_tallying_started = True
+                self.vote_tallying_started_cv.notify_all()
+        else:
+            self.logger.info(f"\tMissing {pend_votes} votes")
+            
 
     # --------------------------------------------------------------------
     # GETTER HELPER FUNCTIONS
@@ -434,6 +457,17 @@ class QuiplashServicer(object):
                 if assignments[user]['questions'][question]['answer'] == EMPTY_ANS_DEFAULT:
                     pending_users.add(user)
         return pending_users
+
+    def _get_num_pending_votes(self):
+        """
+        Checks if an answer has been received for all assigned questions to all users
+        """
+        assignments = self.db.get('assignment')
+        total_votes = 0 
+        for user in assignments:
+            for question in assignments[user]['questions']:
+                total_votes += assignments[user]['questions'][question]['vote_count']
+        return (self.num_players ** 2) - total_votes
     
     def _get_answers_as_grpc(self):
         """
@@ -534,9 +568,41 @@ class QuiplashServicer(object):
 
     
     def tally_votes(self): 
+        self.final_score = {}
         for player in self._get_players(): 
-            print(self._get_votes_for_player(player))
-            
+            player_votes = 0 
+            questions = self._get_votes_for_player(player)["questions"]
+            for question in questions:
+                question_votes = questions[question]['vote_count']
+                player_votes += question_votes
+                if question_votes == self.num_players: 
+                    player_votes += 1 # bonus point for unanimous vote 
+            self.final_score[player] = player_votes * 100
+        # print(self.final_score)
+
+    def display_votes(self, votes):
+        print(votes)
+        players = list(votes.keys())
+        scores = list(votes.items())
+
+        # Calculate the width of each column
+        max_player_length = max([len(player) for player in players])
+        max_score_length = max([len(str(score)) for score in scores])
+        column_width = max(max_player_length, max_score_length) + 2
+
+        # Print the table header
+        print(f"| {'Player':^{column_width}} | {'Score':^{column_width}} |")
+
+        # Print the table separator
+        print(f"+{'-'*(column_width+2)}+{'-'*(column_width+2)}+")
+
+        # Print the rows
+        for player, score in zip(players, scores):
+            print(f"| {player:{column_width}} | {score:{column_width}} |")
+
+        # Print the table footer
+        print(f"+{'-'*(column_width+2)}+{'-'*(column_width+2)}+")
+
 
     def assign_questions(self, mode='all'):
         """
@@ -814,9 +880,10 @@ class QuiplashServicer(object):
             answered = False
             try:
                 # Take timed input using inputimeout() function
-                fav_answer = inputimeout(prompt='Your favorite answer is: ', timeout=TIME_TO_ANSWER)                
-                answered = True
-                pref_user = users_with_answer[int(fav_answer)-1]
+                fav_answer = inputimeout(prompt='Your favorite answer is: ', timeout=TIME_TO_VOTE)                
+                if fav_answer:
+                    answered = True
+                    pref_user = users_with_answer[int(fav_answer)-1]
             except Exception:
                 """Code will enter this code regardless of timeout or not"""
                 if not answered:
@@ -835,25 +902,65 @@ class QuiplashServicer(object):
         
                     # Add to log
                     self._add_vote_to_log(self.username, question_id, pref_user)
+
+                    # send votes from primary to replicas
+                    for rep_server in self.stubs:  
+                        try: 
+                            voter = quiplash_pb2.User(username=self.username)
+                            votee = quiplash_pb2.User(username=pref_user)
+                            grpc_vote = quiplash_pb2.Vote(voter=voter, 
+                                                           question_id=question_id,
+                                                           votee=votee) 
+                            
+                            reply = self.stubs[rep_server].Vote_StateUpdate(grpc_vote, timeout=0.5)
+                        except grpc.RpcError as e:
+                            # self.replica_is_alive[rep_server] = False
+                            print(f"Exception: {rep_server} not alive on Vote_StateUpdate")
+
+                    # Persistance on db 
                     self._execute_log()     
+                    # Triggers voting tallying phase if all votes have been received (or timed out)
+                    self._trigger_tallying()
 
         #
-        # Scoring phase 
+        # TALLYING VOTES PHASE  
         # 
         os.system('clear') 
-        print(" ________  ________  ________  ________  _______   ________      ")
-        print("|\\   ____\\|\\   ____\\|\\   __  \\|\\   __  \\|\\  ___ \\ |\\   ____\\     ")
-        print("\\ \\  \\___|\\ \\  \\___|\\ \\  \\|\\  \\ \\  \\|\\  \\ \\   __/|\\ \\  \\___|_    ")
-        print(" \\ \\_____  \\ \\  \\    \\ \\  \\\\\\  \\ \\   _  _\\ \\  \\_|/_\\ \\_____  \\   ")
-        print("  \\|____|\\  \\ \\  \\____\\ \\  \\\\\\  \\ \\  \\\\  \\\\ \\  \\_|\\ \\|____|\\  \\  ")
-        print("    ____\\_\\  \\ \\_______\\ \\_______\\ \\__\\\\ _\\\\ \\_______\\____\\_\\  \\ ")
-        print("   |\\_________\\|_______|\\|_______|\\|__|\\|__|\\|_______|\\_________\\")
-        print("   \\|_________|                                      \\|_________|")
+        print("\t ________  ________  ________  ________  _______   ________      ")
+        print("\t|\\   ____\\|\\   ____\\|\\   __  \\|\\   __  \\|\\  ___ \\ |\\   ____\\     ")
+        print("\t\\ \\  \\___|\\ \\  \\___|\\ \\  \\|\\  \\ \\  \\|\\  \\ \\   __/|\\ \\  \\___|_    ")
+        print("\t \\ \\_____  \\ \\  \\    \\ \\  \\\\\\  \\ \\   _  _\\ \\  \\_|/_\\ \\_____  \\   ")
+        print("\t  \\|____|\\  \\ \\  \\____\\ \\  \\\\\\  \\ \\  \\\\  \\\\ \\  \\_|\\ \\|____|\\  \\  ")
+        print("\t    ____\\_\\  \\ \\_______\\ \\_______\\ \\__\\\\ _\\\\ \\_______\\____\\_\\  \\ ")
+        print("\t   |\\_________\\|_______|\\|_______|\\|__|\\|__|\\|_______|\\_________\\")
+        print("\t   \\|_________|                                      \\|_________|")
         time.sleep(3) 
-        self.tally_votes()
-
-                
-    
+        #
+        # VOTING TALLYING SETUP PHASE
+        #
+        if not self.is_primary: 
+            # Wait until voting phase ends (Queue is given by Notification from Server)
+            with self.vote_tallying_started_cv:
+                while not self.vote_tallying_started:
+                    self.vote_tallying_started_cv.wait() 
+               
+        else:
+            # Wait until voting started flag is set to True if all answers have been received or it timed out
+            with self.vote_tallying_started_prim_cv:
+                while not self.vote_tallying_started_prim:
+                    val = self.vote_tallying_started_prim_cv.wait(timeout=TIME_TO_VOTE)
+                    self.vote_tallying_started_prim = True
+            
+            #
+            # Notifies other players voting phase begins
+            # 
+            for ip, stub in self.stubs.items():
+                print(f"Notify voting scorings will start")
+                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.SCORING_START)
+                reply = stub.NotifyPlayers(notification)
+            
+        final_votes = self.tally_votes()
+        self.display_votes(final_votes) 
 
 def serve(port):
     IP = socket.gethostbyname(socket.gethostname())
