@@ -597,9 +597,14 @@ class QuiplashServicer(object):
                     break
                 
                 else:
+                    print("username",username)
+                    print("ip", self.ip)
+                    print("self.port", self.port)
+
                     user = quiplash_pb2.User(username=username, 
                                             ip_address=self.ip, 
                                             port=self.port)
+                    
                     reply = self.stubs[self.primary_address].JoinGame(user)
                     if reply.request_status == quiplash_pb2.FAILED:
                         print(f"Username {username} taken, try again")
@@ -737,13 +742,11 @@ class QuiplashServicer(object):
             #            
             grpc_answers = self._get_answers_as_grpc()
             for ip, stub in self.stubs.items():
-                print(f"Send Answers to {ip}")
                 stub.SendAllAnswers(grpc_answers)
             #
             # Notifies other players voting phase begins
             # 
             for ip, stub in self.stubs.items():
-                print(f"Notify Voting to {ip}") 
                 notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
                 reply = stub.NotifyPlayers(notification)
             
@@ -770,7 +773,7 @@ def serve(port):
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser()
     servers = [1, 2, 3, 4, 5, 6, 7, 8]
-    parser.add_argument("-P", "--port", help="Port of where server will be running", type=int, default=os.environ['QUIPLASH_SERVER_PORT'])
+    parser.add_argument("-P", "--port", help="Port of where server will be running", type=str, default=os.environ['QUIPLASH_SERVER_PORT'])
     args = parser.parse_args()
         #     # Wait until voting started flag is set to True
         #     # This flag is set to True once all answers have been received or the has been a timeout
