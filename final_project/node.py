@@ -659,7 +659,7 @@ class QuiplashServicer(object):
                 if answered and (pref_user in users_with_answer):
                     voter = quiplash_pb2.User(username=self.username)
                     votee = quiplash_pb2.User(username=pref_user)
-                    grpc_vote = quiplash_pb2.Vote(voter=respondent, 
+                    grpc_vote = quiplash_pb2.Vote(voter=voter, 
                                                   votee=votee,
                                                   question_id=question_id)
                     reply = self.stubs[self.primary_address].SendVote(grpc_vote)
@@ -681,7 +681,6 @@ class QuiplashServicer(object):
                     self._add_question_ass_to_log(username, question_id)
                     # TODO RUN with execute log
                     self.add_question_ass(username, question_id)
-
             # 
             # Send Assigned Questions to players
             # 
