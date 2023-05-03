@@ -20,6 +20,7 @@ import logging
 from enum import Enum
 
 
+
 def delete_log_files(dir=os.getcwd()):
     for path in os.listdir(dir):
         if path.endswith('.log'):
@@ -561,7 +562,11 @@ class QuiplashServicer(object):
         
 
     def client_handle(self):
-        host_mode = input("Start New Game or Join Existing (1 or 2): ")
+        logo = "  ______       __    __   __  .______    ___   .______    __           ___           _______. __    __     \n /  __  \     |  |  |  | |  | |   _  \  |__ \  |   _  \  |  |         /   \         /       ||  |  |  |    \n|  |  |  |    |  |  |  | |  | |  |_)  |    ) | |  |_)  | |  |        /  ^  \       |   (----`|  |__|  |    \n|  |  |  |    |  |  |  | |  | |   ___/    / /  |   ___/  |  |       /  /_\  \       \   \    |   __   |    \n|  `--'  '--. |  `--'  | |  | |  |       / /_  |  |      |  `----. /  _____  \  .----)   |   |  |  |  |    \n \_____\_____\ \______/  |__| | _|      |____| | _|      |_______|/__/     \__\ |_______/    |__|  |__|    "
+        print(logo)
+        
+
+        host_mode = input("\n\n\n Start New Game or Join Existing (1 or 2): \n\n\n", )
         while host_mode not in ['1', '2']:
             print("\nOption must be `1` or `2`\n")
             host_mode = input("Start New Game or Join Existing (1 or 2)")
