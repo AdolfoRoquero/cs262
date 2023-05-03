@@ -65,6 +65,11 @@ class QuiplashStub(object):
                 request_serializer=quiplash__pb2.Vote.SerializeToString,
                 response_deserializer=quiplash__pb2.RequestReply.FromString,
                 )
+        self.CheckLiveness = channel.unary_unary(
+                '/chatapp.Quiplash/CheckLiveness',
+                request_serializer=quiplash__pb2.LivenessRequest.SerializeToString,
+                response_deserializer=quiplash__pb2.LivenessResponse.FromString,
+                )
 
 
 class QuiplashServicer(object):
@@ -141,6 +146,13 @@ class QuiplashServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CheckLiveness(self, request, context):
+        """Request sent periodically between servers to check for liveness.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_QuiplashServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -193,6 +205,11 @@ def add_QuiplashServicer_to_server(servicer, server):
                     servicer.Vote_StateUpdate,
                     request_deserializer=quiplash__pb2.Vote.FromString,
                     response_serializer=quiplash__pb2.RequestReply.SerializeToString,
+            ),
+            'CheckLiveness': grpc.unary_unary_rpc_method_handler(
+                    servicer.CheckLiveness,
+                    request_deserializer=quiplash__pb2.LivenessRequest.FromString,
+                    response_serializer=quiplash__pb2.LivenessResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -372,5 +389,22 @@ class Quiplash(object):
         return grpc.experimental.unary_unary(request, target, '/chatapp.Quiplash/Vote_StateUpdate',
             quiplash__pb2.Vote.SerializeToString,
             quiplash__pb2.RequestReply.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def CheckLiveness(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chatapp.Quiplash/CheckLiveness',
+            quiplash__pb2.LivenessRequest.SerializeToString,
+            quiplash__pb2.LivenessResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

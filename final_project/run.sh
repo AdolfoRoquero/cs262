@@ -8,4 +8,4 @@ pkill -f node.py
 ttab -w 'source env.sh; poetry run python node.py'
 ttab -w 'source env.sh; poetry run python node.py --port 50070'
 ttab -w 'source env.sh; poetry run python node.py --port 50074'
-ttab -w 'source env.sh; poetry run python node.py --port 50100'
+#ttab -w 'source env.sh; poetry run python node.py --port 50100'
