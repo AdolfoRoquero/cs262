@@ -32,6 +32,7 @@ class GameNotification(_message.Message):
         __slots__ = []
     GAME_START: GameNotification.NotificationType
     QUESTION_TIMEOUT: GameNotification.NotificationType
+    SCORING_START: GameNotification.NotificationType
     TEXT_FIELD_NUMBER: _ClassVar[int]
     TYPE_FIELD_NUMBER: _ClassVar[int]
     VOTING_START: GameNotification.NotificationType

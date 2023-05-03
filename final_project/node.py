@@ -45,10 +45,11 @@ class QuiplashServicer(object):
     """Interface exported by the server.
     """
     def __init__(self, ip, port):
-        self.server_id = 1; 
+        
+        self.server_id = 1
         
         self.ip = ip
-        self.port = str(port)
+        self.port = port
         self.address = f"{self.ip}:{self.port}"
 
         self.primary_ip = ""
@@ -85,6 +86,10 @@ class QuiplashServicer(object):
 
         self.voting_started = False 
         self.voting_started_cv = threading.Condition()
+
+        self.sent_answers = False
+        self.timer_started = False
+        self.scoring_started = False 
 
     def setup_primary(self):
         self.primary_ip = self.ip
@@ -301,6 +306,12 @@ class QuiplashServicer(object):
         pend_players = self._get_players_pending_ans()
         if len(pend_players) == 0:
             self.logger.info(f"\tAll anwers received")
+
+            for ip, stub in self.stubs.items():
+                print(f"Notify Voting to {ip}") 
+                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
+                reply = stub.NotifyPlayers(notification)
+            
             with self.voting_started_cv:
                 self.voting_started = True
                 self.voting_started_cv.notify_all()
@@ -333,9 +344,13 @@ class QuiplashServicer(object):
                 self.game_started_cv.notify_all()  
 
         if request.type == quiplash_pb2.GameNotification.VOTING_START: 
+
             with self.voting_started_cv:
                 self.voting_started = True 
                 self.voting_started_cv.notify_all()
+        
+        if request.type == quiplash_pb2.GameNotification.SCORING_START: 
+            self.scoring_started = True
         
         return quiplash_pb2.RequestReply(reply='Success', 
                                          request_status=quiplash_pb2.SUCCESS) 
@@ -519,6 +534,8 @@ class QuiplashServicer(object):
         """
         Returns a dictionary of format player_address : [question_id, question_id,  ...]
         """
+        if not self.is_primary: 
+            raise RuntimeError("Only primary should run this function") 
         questions = self.db.get('question_prompt')
         if mode == 'all': 
             question_ids = list(questions.keys())
@@ -580,9 +597,14 @@ class QuiplashServicer(object):
                     break
                 
                 else:
+                    print("username",username)
+                    print("ip", self.ip)
+                    print("self.port", self.port)
+
                     user = quiplash_pb2.User(username=username, 
                                             ip_address=self.ip, 
                                             port=self.port)
+                    
                     reply = self.stubs[self.primary_address].JoinGame(user)
                     if reply.request_status == quiplash_pb2.FAILED:
                         print(f"Username {username} taken, try again")
@@ -719,17 +741,15 @@ class QuiplashServicer(object):
             #            
             grpc_answers = self._get_answers_as_grpc()
             for ip, stub in self.stubs.items():
-                print(f"Send Answers to {ip}")
                 stub.SendAllAnswers(grpc_answers)
             #
             # Notifies other players voting phase begins
             # 
             for ip, stub in self.stubs.items():
-                print(f"Notify Voting to {ip}") 
                 notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
                 reply = stub.NotifyPlayers(notification)
             
-     
+        pass
      
 
 def serve(port):
@@ -752,11 +772,15 @@ def serve(port):
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser()
     servers = [1, 2, 3, 4, 5, 6, 7, 8]
-    parser.add_argument("-P", "--port", help="Port of where server will be running", type=int, default=os.environ['QUIPLASH_SERVER_PORT'])
-
+    parser.add_argument("-P", "--port", help="Port of where server will be running", type=str, default=os.environ['QUIPLASH_SERVER_PORT'])
     args = parser.parse_args()
-    if args.port < 50000:
-        print(f"Error: port number must be greater than 50000 (current:{args.port})")
-        exit()
+        #     # Wait until voting started flag is set to True
+        #     # This flag is set to True once all answers have been received or the has been a timeout
+        #     if self.voting_started:
+        #         # notifies other players voting phase begins
+        #         for ip, stub in self.stubs.items():
+        #             print(f"Notify Voting to {ip}") 
+        #             notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
+        #             reply = stub.NotifyPlayers(notification)
 
     serve(args.port) 

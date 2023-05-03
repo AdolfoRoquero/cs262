@@ -161,7 +161,8 @@ message GameNotification {
     enum NotificationType {
                 GAME_START = 0;
                 VOTING_START = 1;
-                QUESTION_TIMEOUT = 2; 
+                SCORING_START = 2;
+                QUESTION_TIMEOUT = 3; 
             }
     NotificationType type = 1; 
     optional string text = 2; // String with game message for users 
