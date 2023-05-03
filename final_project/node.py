@@ -154,18 +154,13 @@ class QuiplashServicer(object):
         for entry in log[current_ptr:]:
             params = entry['params']
             if entry['action_type'] == LogActionType.NEW_USER.value:
-                self.db.dadd("assignment", (params['username'], {"ip": params['ip'],
-                                                                 "port": params['port'], 
-                                                                 "questions": {}}))
-                self.num_players += 1
-                self.address_to_user[f"{params['ip']}:{params['port']}"] = params['username']
-
+                self.add_new_player(params['username'], params['ip'], params['port'])
             elif entry['action_type'] == LogActionType.QUESTION_ASS.value:
-                temp = self.db.get("assignment")
-                temp[params['username']]["questions"][params['question_id']] = {"answer": EMPTY_ANS_DEFAULT, "vote_count":0}
-                self.db.set("assignment", temp)
-                        
+                self.add_question_ass(params['username'], params['question_id'])                        
             elif entry['action_type'] == LogActionType.ANSWER_RECV.value:
+                self.add_new_answer(params['username'],params['question_id'],params['answer_text'])
+            elif entry['action_type'] == LogActionType.VOTE_RECV.value:
+                self.add_new_vote(params['votee'])
                 temp = self.db.get("assignment")
                 temp[params['username']]["questions"][params['question_id']]['answer'] = params['answer_text']
                 self.db.set("assignment", temp)
@@ -453,6 +448,10 @@ class QuiplashServicer(object):
         temp[username]['questions'][question_id]['answer'] = answer_text
         self.db.set("assignment", temp)
 
+    def add_new_vote(self, votee, question_id):
+        temp = self.db.get('assignment')
+        temp[votee]['questions'][question_id]['vote_count'] += 1
+        self.db.set('assignment', temp)  
 
     # --------------------------------------------------------------------
     # ADD TO LOG 
