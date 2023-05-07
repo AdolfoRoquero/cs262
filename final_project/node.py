@@ -20,7 +20,7 @@ from utils import check_valid_ip_format
 import sys
 
 
-TIME_PER_ANSWER = 20
+TIME_PER_ANSWER = 40
 TIME_PER_VOTE = 30
 EMPTY_ANS_DEFAULT = "NA"
 STATIC_QUESTIONS_DB = "questions.db"
@@ -265,7 +265,7 @@ class QuiplashServicer(object):
 
                 # Persistence Add to db
                 self._execute_log()
-                print(f'New player joined {request.username}, {len(self._get_players())} players in the room')
+                print(f'New player {request.username} joined, {len(self._get_players())} players in the room')
 
                 return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.SUCCESS,
                                                 game_status=game_status,
@@ -707,7 +707,6 @@ class QuiplashServicer(object):
             address = f"{assignments[player]['ip']}:{assignments[player]['port']}"
             # check for liveness from stubs 
             if player != self.username and not self.replica_is_alive[address]:
-                print("\n\n\n is this fucking it up? \n\n\n")
                 continue
 
             active_player_answers += assignments[player]['answer_count']
@@ -940,9 +939,28 @@ class QuiplashServicer(object):
     def client_handle(self):
         logo = "  ______       __    __   __  .______    ___   .______    __           ___           _______. __    __     \n /  __  \     |  |  |  | |  | |   _  \  |__ \  |   _  \  |  |         /   \         /       ||  |  |  |    \n|  |  |  |    |  |  |  | |  | |  |_)  |    ) | |  |_)  | |  |        /  ^  \       |   (----`|  |__|  |    \n|  |  |  |    |  |  |  | |  | |   ___/    / /  |   ___/  |  |       /  /_\  \       \   \    |   __   |    \n|  `--'  '--. |  `--'  | |  | |  |       / /_  |  |      |  `----. /  _____  \  .----)   |   |  |  |  |    \n \_____\_____\ \______/  |__| | _|      |____| | _|      |_______|/__/     \__\ |_______/    |__|  |__|    "
         os.system('clear')
-        print(logo)
         
-        print("\n\n\n")
+        # print(logo)
+        print(r''' ________  ___  ___  ___  ________          
+|\   __  \|\  \|\  \|\  \|\   __  \         
+\ \  \|\  \ \  \\\  \ \  \ \  \|\  \        
+ \ \  \\\  \ \  \\\  \ \  \ \   ____\       
+  \ \  \\\  \ \  \\\  \ \  \ \  \___|       
+   \ \_____  \ \_______\ \__\ \__\          
+    \|___| \__\|_______|\|__|\|__|          
+          \|__|                      ''')
+        print(r''' ___       ________  ________  ___  ___     
+|\  \     |\   __  \|\   ____\|\  \|\  \    
+\ \  \    \ \  \|\  \ \  \___|\ \  \\\  \   
+ \ \  \    \ \   __  \ \_____  \ \   __  \  
+  \ \  \____\ \  \ \  \|____|\  \ \  \ \  \ 
+   \ \_______\ \__\ \__\____\_\  \ \__\ \__\
+    \|_______|\|__|\|__|\_________\|__|\|__|
+                       \|_________|         
+                                            
+''')
+        
+        print("\n")
         host_mode = input("Start New Game or Join Existing (1 or 2): ")
         while host_mode not in ['1', '2']:
             print("\nOption must be `1` or `2`\n")
@@ -952,7 +970,7 @@ class QuiplashServicer(object):
             # Primary Node
             self.setup_primary()
             # Prompt game mode 
-            print("\n\n\n")
+            print("\n")
             print("Pick your game mode! This defines the types of questions you will see. \n")
             game_mode = input("All questions (1), random (2), systems theme (3): ")
             while game_mode not in ['1', '2', '3']:
