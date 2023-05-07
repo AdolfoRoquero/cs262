@@ -698,16 +698,23 @@ class QuiplashServicer(object):
         Checks if an answer has been received 
         for all assigned questions to all users
         """
-        pending_users = set()
+        num_active_players = 0
+        active_player_answers = 0
+        players_missing_answers = []
         assignments = self.db.get('assignment')
-        for user in assignments:
-            # Don't count dead users for pending answers
-            address = f"{assignments[user]['ip']}:{assignments[user]['port']}"
-            if address == self.address or self.replica_is_alive[address]:
-                for question in assignments[user]['questions']:
-                    if assignments[user]['questions'][question]['answer'] == "":
-                        pending_users.add(user)
-        return pending_users
+        for player_ass in assignments:
+            address = f"{assignments[player_ass]['ip']}:{assignments[player_ass]['port']}"
+            # check for liveness from stubs 
+            if player_ass != self.username and not self.replica_is_alive[address]:
+                print("\n\n\n is this fucking it up? \n\n\n")
+                continue
+
+            active_player_answers += assignments[player_ass]['answer_count']
+            num_active_players += 1
+            if assignments[player_ass]['answer_count'] != self.num_players:
+                players_missing_answers.append(player_ass)
+
+        return players_missing_answers
 
     def _get_num_pending_votes(self):
         """
@@ -729,7 +736,7 @@ class QuiplashServicer(object):
 
             active_player_votes += assignments[player_ass]['votes']
             num_active_players += 1
-            if assignments[player_ass]['votes'] != 2:
+            if assignments[player_ass]['votes'] != self.num_players:
                 players_missing_votes.append(player_ass)
 
         # number of unique questions is equal to the number of players (originally)
@@ -784,6 +791,7 @@ class QuiplashServicer(object):
         self.db.dadd("assignment", (username, {"ip": ip_address, 
                                                "port": port, 
                                                "questions": {}, 
+                                               "answer_count": 0,
                                                "votes": 0}))
         # Increase counter of total players.
         self.num_players += 1 
@@ -799,6 +807,7 @@ class QuiplashServicer(object):
         """Add answer to the pickledb"""
         temp = self.db.get("assignment")
         temp[username]['questions'][question_id]['answer'] = answer_text
+        temp[username]['answer_count'] += 1 
         self.db.set("assignment", temp)
 
     def add_new_vote(self, voter, votee, question_id):
