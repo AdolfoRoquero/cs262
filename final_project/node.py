@@ -11,7 +11,7 @@ import socket
 import threading
 import numpy as np 
 import time
-from inputimeout import inputimeout
+from inputimeout import inputimeout, TimeoutOccurred
 from collections import defaultdict
 import random
 import logging
@@ -1038,8 +1038,10 @@ class QuiplashServicer(object):
             try:
                 # Take timed input using inputimeout() function
                 answer_text = inputimeout(prompt='Your Answer: ', timeout=TIME_PER_ANSWER)
+                if answer_text == "": 
+                    answer_text = EMPTY_ANS_DEFAULT
                 answered = True
-            except Exception:
+            except TimeoutOccurred:
                 """Code will enter this code regardless of timeout or not"""
                 if not answered:
                     answer_text = EMPTY_ANS_DEFAULT
