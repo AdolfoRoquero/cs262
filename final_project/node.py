@@ -668,14 +668,15 @@ class QuiplashServicer(object):
         """
         Trigger voting if all answers have been received
         """
-        pend_votes, pend_players = self._get_num_pending_votes()
+        expected_votes, total_votes, pend_players = self._get_num_pending_votes()
+        pend_votes = expected_votes - total_votes
         if pend_votes == 0:
             self.logger.info(f"\tAll votes received")
             with self.vote_tallying_started_cv:
                 self.vote_tallying_started = True
                 self.vote_tallying_started_cv.notify_all()
         else:
-            self.logger.info(f"\tMissing {pend_votes} votes from {pend_players}")
+            self.logger.info(f"\tMissing {pend_votes} out of {expected_votes} votes from {pend_players}")
             
 
     # --------------------------------------------------------------------
@@ -721,7 +722,6 @@ class QuiplashServicer(object):
         players_missing_votes = []
 
         for player_ass in assignments:
-            
             address = f"{assignments[player_ass]['ip']}:{assignments[player_ass]['port']}"
             if player_ass != self.username and not self.replica_is_alive[address]:
                 continue
@@ -735,7 +735,7 @@ class QuiplashServicer(object):
         expected_votes = all_active_players * self.num_players 
 
         # Compute difference 
-        return expected_votes - active_player_votes, players_missing_votes
+        return expected_votes, active_player_votes, players_missing_votes
     
     def _get_answers_as_grpc(self):
         """
