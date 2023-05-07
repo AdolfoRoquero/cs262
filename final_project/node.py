@@ -138,7 +138,6 @@ class QuiplashServicer(object):
             try:
                 grpc.channel_ready_future(channel).result(timeout=2)
                 self.stubs[address] = stub
-                print(f"Add {address} to self.stubs")
                 self.replica_is_alive[address] = True
                 self.logger.info(f"STUB CREATED: Created stub to {address}")
                 return True
