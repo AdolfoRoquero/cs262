@@ -1037,7 +1037,7 @@ class QuiplashServicer(object):
             answered = False
             try:
                 # Take timed input using inputimeout() function
-                answer_text = inputimeout(prompt='Your Answer: ', timeout=TIME_TO_ANSWER)
+                answer_text = inputimeout(prompt='Your Answer: ', timeout=TIME_PER_ANSWER)
                 answered = True
             except Exception:
                 """Code will enter this code regardless of timeout or not"""
