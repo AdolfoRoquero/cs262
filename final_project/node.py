@@ -1042,40 +1042,38 @@ class QuiplashServicer(object):
             except Exception:
                 """Code will enter this code regardless of timeout or not"""
                 if not answered:
+                    answer_text = EMPTY_ANS_DEFAULT
                     print("You ran out of time! Moving to next question\n")
             
-            if answered:
-                if not self.is_primary:
-                    # Secondary nodes must SEND their answers to the primary node
-                    respondent = quiplash_pb2.User(username=self.username)
-                    grpc_answer = quiplash_pb2.Answer(respondent=respondent, 
-                                                        answer_text=answer_text, 
-                                                        question_id=question['question_id']) 
-                    reply = self.stubs[self.primary_address].SendAnswer(grpc_answer)
-                
-                else:
-                    # Primary node must UPDATE LOCAL STORAGE and send UPDATE to others
-                    # Add to log
-                    self._add_answer_to_log(self.username, question['question_id'], answer_text)
-                    # Send State update to all replicas
-                    for rep_server in self.stubs:  
-                        try: 
-                            respondent = quiplash_pb2.User(username=self.username)
-                            grpc_answer = quiplash_pb2.Answer(respondent=respondent, 
-                                                              answer_text=answer_text, 
-                                                              question_id=question['question_id']) 
-                            
-                            reply = self.stubs[rep_server].UserAnswer_StateUpdate(grpc_answer, timeout=0.5)
-                        except grpc.RpcError as e:
-                            self.replica_is_alive[rep_server] = False
-                            print(f"Exception: {rep_server} not alive on UserAnswer_StateUpdate")
-                    # Persistence on DB
-                    self._execute_log()
-                    # Triggers voting phase if all answers have been received
-                    self._trigger_voting()
-
+            if not self.is_primary:
+                # Secondary nodes must SEND their answers to the primary node
+                respondent = quiplash_pb2.User(username=self.username)
+                grpc_answer = quiplash_pb2.Answer(respondent=respondent, 
+                                                    answer_text=answer_text, 
+                                                    question_id=question['question_id']) 
+                reply = self.stubs[self.primary_address].SendAnswer(grpc_answer)
+            
+            else:
+                # Primary node must UPDATE LOCAL STORAGE and send UPDATE to others
+                # Add to log
+                self._add_answer_to_log(self.username, question['question_id'], answer_text)
+                # Send State update to all replicas
+                for rep_server in self.stubs:  
+                    try: 
+                        respondent = quiplash_pb2.User(username=self.username)
+                        grpc_answer = quiplash_pb2.Answer(respondent=respondent, 
+                                                            answer_text=answer_text, 
+                                                            question_id=question['question_id']) 
+                        
+                        reply = self.stubs[rep_server].UserAnswer_StateUpdate(grpc_answer, timeout=0.5)
+                    except grpc.RpcError as e:
+                        self.replica_is_alive[rep_server] = False
+                        print(f"Exception: {rep_server} not alive on UserAnswer_StateUpdate")
+                # Persistence on DB
+                self._execute_log()
+                # Triggers voting phase if all answers have been received
+                self._trigger_voting()
                     
-        voting_setup_complete = False
         #
         # VOTING SETUP PHASE
         #
