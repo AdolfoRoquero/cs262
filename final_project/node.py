@@ -732,9 +732,10 @@ class QuiplashServicer(object):
             if assignments[player_ass]['votes'] != 2:
                 players_missing_votes.append(player_ass)
 
-        expected_votes = all_active_players**2
+        # number of unique questions is equal to the number of players (originally)
+        expected_votes = all_active_players * self.num_players 
 
-        # Compute difference between (# of active players)^2 vs # of votes from active players
+        # Compute difference 
         return expected_votes - active_player_votes, players_missing_votes
     
     def _get_answers_as_grpc(self):
