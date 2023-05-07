@@ -412,6 +412,35 @@ class QuiplashServicer(object):
         RequestReply:
             Confirms receipt of the answer by the PRIMARY node.
         """
+        if self.voting_started_prim: 
+            # answer received after voting phase has started 
+            self.logger.info(f"ANSWERS RECV: Received Answer from {request.respondent.username} after voting start, ignored")
+            return quiplash_pb2.RequestReply(reply = 'Failed, voting has started', 
+                                            request_status=quiplash_pb2.FAILED)
+        else: 
+            self.logger.info(f"ANSWERS RECV: Received Answer from {request.respondent.username}")
+
+            # Add to log
+            self._add_answer_to_log(request.respondent.username, request.question_id, request.answer_text)
+            # Send State update to all replicas
+            for rep_server in self.stubs:  
+                try: 
+                    reply = self.stubs[rep_server].UserAnswer_StateUpdate(request, timeout=0.5)
+                except grpc.RpcError as e:
+                    self.replica_is_alive[rep_server] = False
+                    self.logger.error(f"Exception: {rep_server} not alive on UserAnswer_StateUpdate")
+
+            # Persistence on DB
+            self._execute_log()
+            # Triggers voting phase if all answers have been received
+            self._trigger_voting()
+
+            return quiplash_pb2.RequestReply(reply = 'Success', 
+                                            request_status=quiplash_pb2.SUCCESS)
+    
+    def UserAnswer_StateUpdate(self, request, context):
+        """CLIENT RUN Request to update replica state when a user ANSWERS a question.
+        """
         if self.is_primary:
             self.logger.info(f"ANSWERS RECV: Received Answer from {request.respondent.username}")
 
@@ -487,7 +516,8 @@ class QuiplashServicer(object):
             Confirms receipt of the notification by the SECONDARY node.
         """
         if not self.is_primary:
-            self.logger.info(f"NOTIFICATION RECV: Received Notification at {self.username}")
+            request_name = quiplash_pb2.GameNotification.NotificationType.Name(request.type)
+            self.logger.info(f"NOTIFICATION RECV: Received {request_name} Notification at {self.username}")
             if request.type == quiplash_pb2.GameNotification.GAME_START: 
                 with self.game_started_cv:
                     self.game_started = True
@@ -568,24 +598,30 @@ class QuiplashServicer(object):
             Confirms receipt of vote by the PRIMARY node.
         """
         if self.is_primary:
-            self.logger.info(f"VOTE RECV: Vote received from {request.voter.username} to {request.votee.username} on question {request.question_id}")
-            
-            # Add to log
-            self._add_vote_to_log(request.voter.username, request.question_id, request.votee.username)
+            if self.vote_tallying_started_prim: 
+                # vote received after vote tallying phase has started 
+                self.logger.info(f"VOTE RECV: Received Vote after scoring started from {request.voter.username} to {request.votee.username} on question {request.question_id}")
+                return quiplash_pb2.RequestReply(reply = 'Failed, scoring has started', 
+                                                request_status=quiplash_pb2.FAILED)
+            else: 
+                self.logger.info(f"VOTE RECV: Vote received from {request.voter.username} to {request.votee.username} on question {request.question_id}")
+                
+                # Add to log
+                self._add_vote_to_log(request.voter.username, request.question_id, request.votee.username)
 
-            # Send State update to all replicas
-            for rep_server in self.stubs:  
-                try: 
-                    reply = self.stubs[rep_server].Vote_StateUpdate(request, timeout=0.5)
-                except grpc.RpcError as e:
-                    self.replica_is_alive[rep_server] = False
-                    self.logger.error(f"Exception: {rep_server} not alive on Vote_StateUpdate")
+                # Send State update to all replicas
+                for rep_server in self.stubs:  
+                    try: 
+                        reply = self.stubs[rep_server].Vote_StateUpdate(request, timeout=0.5)
+                    except grpc.RpcError as e:
+                        self.replica_is_alive[rep_server] = False
+                        self.logger.error(f"Exception: {rep_server} not alive on Vote_StateUpdate")
 
-            self._execute_log() 
-            # Triggers tallying phase if all votes have been received
-            self._trigger_tallying()    
-            return quiplash_pb2.RequestReply(reply='Success', 
-                                            request_status=quiplash_pb2.SUCCESS) 
+                self._execute_log() 
+                # Triggers tallying phase if all votes have been received
+                self._trigger_tallying()    
+                return quiplash_pb2.RequestReply(reply='Success', 
+                                                request_status=quiplash_pb2.SUCCESS) 
         else:
             self.logger.error(f"ERROR: Send Vote request received on secondary node (primary only)")
             return quiplash_pb2.RequestReply(reply='Failure', 
@@ -1140,7 +1176,6 @@ class QuiplashServicer(object):
         
         for idx, question_id in enumerate(self.answers_per_question):
             question_info = self._get_question_data(question_id)
-            # print(f"Question {idx}:\n")
             print(f"\nPrompt: {question_info['question']}\n\n")
             print("Answers: \n")
             users_with_answer = []
@@ -1206,7 +1241,7 @@ class QuiplashServicer(object):
         print("\t    ____\\_\\  \\ \\_______\\ \\_______\\ \\__\\\\ _\\\\ \\_______\\____\\_\\  \\ ")
         print("\t   |\\_________\\|_______|\\|_______|\\|__|\\|__|\\|_______|\\_________\\")
         print("\t   \\|_________|                                      \\|_________|")
-        time.sleep(3) 
+        time.sleep(2) 
         #
         # VOTING TALLYING SETUP PHASE
         #
@@ -1230,7 +1265,7 @@ class QuiplashServicer(object):
                 # print(f"Notify voting scorings will start")
                 notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.SCORING_START)
                 reply = stub.NotifyPlayers(notification)
-            
+
         self.tally_votes()
         self.display_votes() 
 
