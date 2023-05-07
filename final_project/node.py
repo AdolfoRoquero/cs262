@@ -767,7 +767,7 @@ class QuiplashServicer(object):
         return self.db.get("assignment")[username]
 
     # --------------------------------------------------------------------
-    # ADD TO DB (Take from log to DB) 
+    # ADD TO DB (Take from log and add to DB) 
     # --------------------------------------------------------------------
     def add_new_player(self, username, ip_address, port):
         """Add new player to the pickledb and update state"""
