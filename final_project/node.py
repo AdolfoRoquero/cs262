@@ -895,17 +895,17 @@ class QuiplashServicer(object):
         print(f"\t\t\t   +{'-'*(column_width+2)}+{'-'*(column_width+2)}+")
 
 
-    def assign_questions(self, mode='all'):
+    def assign_questions(self):
         """
         Returns a dictionary of format player_address : [question_id, question_id,  ...]
         """
         if not self.is_primary: 
             raise RuntimeError("Only primary should run this function") 
         questions = self.db.get('question_prompt')
-        if mode == 'all': 
+        if self.game_mode == 'all': 
             question_ids = list(questions.keys())
-        elif mode in ['random', 'system']:
-            question_ids = [question_id for question_id in questions if questions[question_id]['category'] == mode]
+        elif self.game_mode in ['random', 'system']:
+            question_ids = [question_id for question_id in questions if questions[question_id]['category'] == self.game_mode]
         else:
             pass
 
@@ -937,6 +937,15 @@ class QuiplashServicer(object):
         if host_mode == '1':
             # Primary Node
             self.setup_primary()
+            # Prompt game mode 
+            print("\n\n\n")
+            print("Pick your game mode! This defines the types of questions you will see. \n")
+            game_mode = input("All questions (1), random (2), systems theme (3): ")
+            while game_mode not in ['1', '2', '3']:
+                print("\nOption must be `1`, `2` or `3`.\n")
+                game_mode = input("All questions (1), random (2), systems theme (3): ")
+            modes = {'1': 'all', '2': 'random', '3': 'system'}
+            self.game_mode = modes[game_mode]
 
         elif host_mode == '2':
             # Secondary Node
