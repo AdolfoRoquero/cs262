@@ -1,4 +1,8 @@
 def check_valid_ip_format(input_text):
+    """
+    Helper function to check if an input 
+    string has the format of a valid address <ip>:<address>
+    """
     if not input_text:
         print("\nCode can't be empty \n")
         return False

@@ -20,12 +20,6 @@ from utils import check_valid_ip_format
 import sys
 
 
-def delete_log_files(dir=os.getcwd()):
-    for path in os.listdir(dir):
-        if path.endswith('.log'):
-            os.remove(path)	
-
-
 TIME_PER_ANSWER = 20
 TIME_PER_VOTE = 30
 EMPTY_ANS_DEFAULT = "NA"
@@ -651,10 +645,6 @@ class QuiplashServicer(object):
         Request sent periodically between servers to check for liveness.
         """
         return quiplash_pb2.LivenessResponse(status='OK')
-
-
-
-
 
 
     def _trigger_voting(self):
@@ -1323,6 +1313,6 @@ def serve(port):
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser()
     servers = [1, 2, 3, 4, 5, 6, 7, 8]
-    parser.add_argument("-P", "--port", help="Port of where server will be running", type=str, default=os.environ['QUIPLASH_SERVER_PORT'])
+    parser.add_argument("-P", "--port", help="Port of where server will be running", type=str, default='50051')
     args = parser.parse_args()
     serve(args.port) 
