@@ -303,7 +303,6 @@ class QuiplashServicer(object):
         RequestReply:
             Confirms receipt of state update by the SECONDARY node.
         """
-
         if not self.is_primary:
             self.logger.info(f"STATE UPDT at {self.server_id}: NewUser_StateUpdate User({request.username})")
             
@@ -500,7 +499,6 @@ class QuiplashServicer(object):
                     self.voting_started_cv.notify_all()
             
             if request.type == quiplash_pb2.GameNotification.SCORING_START: 
-                self.scoring_started = True
                 with self.vote_tallying_started_cv:
                     self.vote_tallying_started = True 
                     self.vote_tallying_started_cv.notify_all()
