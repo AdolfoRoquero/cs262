@@ -731,7 +731,7 @@ class QuiplashServicer(object):
             if assignments[player_ass]['votes'] != 2:
                 players_missing_votes.append(player_ass)
 
-        expected_votes = len(all_active_players)**2
+        expected_votes = all_active_players**2
 
         # Compute difference between (# of active players)^2 vs # of votes from active players
         return expected_votes - active_player_votes, players_missing_votes
