@@ -33,20 +33,29 @@ service Quiplash {
   rpc SendQuestions(QuestionList) returns (RequestReply); 
 
   // Request from OTHER-NODES to PRIMARY node with answer to question 
-  //rpc SendAnswer(Answer) returns (RequestReply); 
-
-  rpc SendAnswers(AnswerList) returns (RequestReply); 
-
-  // Request from OTHER-NODES to PRIMARY node with answer to question 
-  rpc SendVote(Vote) returns (RequestReply); 
-
+  rpc SendAnswer(Answer) returns (RequestReply); 
+  
   // Request from PRIMARY node to OTHER-NODES with all answers to all questions for voting.
   rpc SendAllAnswers(AnswerList) returns (RequestReply); 
+  
+  // Request from OTHER-NODES to PRIMARY node with answer to question 
+  rpc SendVote(Vote) returns (RequestReply); 
 
   // Server notification 
   rpc NotifyPlayers(GameNotification) returns (RequestReply);
 
-  
+
+  // Request to update replica state when a new user JOINS the game.
+  rpc NewUser_StateUpdate(User) returns (RequestReply); 
+
+  // Request to update replica state when a question is ASSIGNED to a user.
+  rpc QuestionAssignment_StateUpdate(QuestionList) returns (RequestReply); 
+
+  // Request to update replica state when a user ANSWERS a question.
+  rpc UserAnswer_StateUpdate(Answer) returns (RequestReply);
+
+  // Request to update replica state when a user VOTES for a quesiton.
+  rpc Vote_StateUpdate(Vote) returns (RequestReply);
 
 
 //   // Request to list all users in the platform 
@@ -106,6 +115,7 @@ message JoinGameReply {
     optional int32 num_players = 1; 
     RequestStatus request_status = 2;
     optional string rerouted = 3; 
+    repeated User existing_players = 4; // List of already existing users playing the game 
 }
 
 
@@ -121,12 +131,13 @@ message User {
 
 message Question {
     string question_id = 1; // Unique identifier for the question 
-    string question_text = 2; // Question to be answered 
+    string question_text = 2; //question text
     string topic = 3; // Systems related or random 
+    optional User destinatary = 4; // If present, refers to user who the question is directed to  
 }
 
 message QuestionList {
-    repeated Question question_list= 1; // List of questions
+    repeated Question question_list = 1; // List of questions
 }
 
 message Answer {
