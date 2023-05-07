@@ -673,9 +673,9 @@ class QuiplashServicer(object):
         pend_votes = expected_votes - total_votes
         if pend_votes == 0:
             self.logger.info(f"\tAll votes received")
-            with self.vote_tallying_started_cv:
-                self.vote_tallying_started = True
-                self.vote_tallying_started_cv.notify_all()
+            with self.vote_tallying_started_prim_cv:
+                self.vote_tallying_started_prim = True
+                self.vote_tallying_started_prim_cv.notify_all()
         else:
             self.logger.info(f"\tMissing {pend_votes} out of {expected_votes} votes from {pend_players}")
             
@@ -1116,9 +1116,9 @@ class QuiplashServicer(object):
             # Send Answers from players to players
             #            
             grpc_answers = self._get_answers_as_grpc()
-            for ip, stub in self.stubs.items():
-                if self.replica_is_alive[ip]:
-                    print(f"Sending all ans {ip}")
+            for address, stub in self.stubs.items():
+                if self.replica_is_alive[address]:
+                    print(f"Sending all ans {address}")
                     stub.SendAllAnswers(grpc_answers)
 
 
