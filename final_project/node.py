@@ -433,18 +433,14 @@ class QuiplashServicer(object):
         Parameters
         ----------
         request: Vote (quiplash.proto)
-            List of Answers for questions.
+            Vote for a given questions
 
         Returns
         -------
         RequestReply:
-            Indicates Success or Failure of the request attempt.
-            Confirms receipt of answers by the SECONDARY node.
+            Confirms receipt of vote by the PRIMARY node.
         """
         
-        
-        """Request from OTHER-NODES to PRIMARY node with vote for a given answer 
-        """
         self.logger.info(f"VOTE RECV: Vote received from {request.voter.username} to {request.votee.username} on question {request.question_id}")
         
         # Add to log
@@ -465,7 +461,22 @@ class QuiplashServicer(object):
                                          request_status=quiplash_pb2.SUCCESS) 
 
     def Vote_StateUpdate(self, request, context):
-        """Request to update replica state when a user VOTES for a quesiton.
+        """
+        Receives a state update with a vote from the PRIMARY node
+
+        Running host:
+        -------------
+        Code in this function runs on SECONDARY NODES (called in PRIMARY NODES).
+
+        Parameters
+        ----------
+        request: Vote (quiplash.proto)
+            Vote for a given questions
+
+        Returns
+        -------
+        RequestReply:
+            Confirms receipt of state update by the PRIMARY node.
         """
         self.logger.info(f"STATE UPDT at {self.server_id}: Vote_StateUpdate")
         # Add to log
@@ -483,8 +494,28 @@ class QuiplashServicer(object):
 
     def _trigger_voting(self):
         """
-        Trigger voting if all answers have been received
         """
+        """
+        Check inf all answers have been received for all questions
+        and trigger voting if it is the case. 
+        Voting is triggered by using a Conditional Variable which, on
+        Trigger voting if all answers have been received
+
+        Running host:
+        -------------
+        Code in this function runs on SECONDARY NODES (called in PRIMARY NODES).
+
+        Parameters
+        ----------
+        request: Vote (quiplash.proto)
+            Vote for a given questions
+
+        Returns
+        -------
+        RequestReply:
+            Confirms receipt of state update by the PRIMARY node.
+        """
+
         pend_players = self._get_players_pending_ans()
         if len(pend_players) == 0:
             self.logger.info(f"\tAll anwers received")
@@ -498,7 +529,7 @@ class QuiplashServicer(object):
         """
         Trigger voting if all answers have been received
         """
-        pend_votes, active_user_votes = self._get_num_pending_votes()
+        pend_votes = self._get_num_pending_votes()
         if pend_votes == 0:
             self.logger.info(f"\tAll votes received")
             with self.vote_tallying_started_cv:
