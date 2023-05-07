@@ -811,7 +811,6 @@ class QuiplashServicer(object):
         self.db.set("assignment", temp)
 
     def add_new_vote(self, voter, votee, question_id):
-        print(f"add new vote: voter {voter}, votee {votee}, id {question_id} ")
         """Add vote to the pickledb"""
         temp = self.db.get('assignment')
         temp_questions = self.db.get('question_prompt')
