@@ -721,11 +721,9 @@ class QuiplashServicer(object):
         players_missing_votes = []
 
         for player_ass in assignments:
-            print("player ass", player_ass)
             address = f"{assignments[player_ass]['ip']}:{assignments[player_ass]['port']}"
-            # TODO: deal with checking replica liveness 
+            # check for liveness from stubs 
             if player_ass != self.username and not self.replica_is_alive[address]:
-                print("should continue")
                 continue
 
             active_player_votes += assignments[player_ass]['votes']
@@ -734,7 +732,6 @@ class QuiplashServicer(object):
                 players_missing_votes.append(player_ass)
 
         # number of unique questions is equal to the number of players (originally)
-        print("all active players: ", num_active_players, "num players: ",self.num_players  )
         expected_votes = num_active_players * self.num_players 
 
         # Compute difference 
