@@ -27,10 +27,11 @@ def delete_log_files(dir=os.getcwd()):
 
 
 TIME_PER_ANSWER = 20
-TIME_PER_VOTE = 15
+TIME_PER_VOTE = 30
 EMPTY_ANS_DEFAULT = "NA"
 STATIC_QUESTIONS_DB = "questions.db"
 QUESTIONS_PER_PLAYER = 2
+CHAT_GPT_USERNAME = 'chatGPT'
 
 def liveness_check_thread(instance):
     while True:
@@ -172,8 +173,10 @@ class QuiplashServicer(object):
         self.db = pickledb.load(self.db_filename, True)
         question_prompt_db = pickledb.load(static_questions_filename, True)        
         self.db.set('assignment', {}) 
-        self.db.set('question_prompt', question_prompt_db.get('question_prompt'))
-
+        temp = question_prompt_db.get('question_prompt') 
+        for question in temp: 
+            temp[question]['chatGPT_votes'] = 0 
+        self.db.set('question_prompt', temp)
 
         # Pending log (for replication)
         # Delete previous pending log
@@ -374,10 +377,13 @@ class QuiplashServicer(object):
                 self.logger.error(f"ERROR: STATE UPDT received at {self.server_id} when is_primary = {self.is_primary}")
                 raise RuntimeError('Only secondary should run state updates')
             else :
+                self.assigned_questions_ids = []
                 for question in request.question_list:
                     # Add Question to log
                     self._add_question_ass_to_log(question.destinatary.username,
                                                 question.question_id)
+                    # Add question to local memory for case of primary switching 
+                    self.assigned_questions_ids.append(question.question_id)
                 
                 self._execute_log()
 
@@ -549,7 +555,7 @@ class QuiplashServicer(object):
             # Adding pre-generated chatgpt answers
             for question in self.answers_per_question:
                 self.answers_per_question[question].append({
-                    'user': 'chatGPT', 
+                    'user': CHAT_GPT_USERNAME, 
                     'answer': self._get_question_data(question)['chatGPT_answer']})
             
             return quiplash_pb2.RequestReply(reply='Success', 
@@ -815,16 +821,22 @@ class QuiplashServicer(object):
         self.db.set("assignment", temp)
 
     def add_new_vote(self, voter, votee, question_id):
+        print(f"add new vote: voter {voter}, votee {votee}, id {question_id} ")
         """Add vote to the pickledb"""
         temp = self.db.get('assignment')
+        temp_questions = self.db.get('question_prompt')
         # Add x
-        if votee != EMPTY_ANS_DEFAULT:
+        assert CHAT_GPT_USERNAME not in self._get_players()
+        if votee in self._get_players():
             temp[votee]['questions'][question_id]['vote_count'] += 1
             temp[votee]['questions'][question_id]['voters'].append(voter)
+        elif votee == CHAT_GPT_USERNAME: 
+            temp_questions[question_id]['chatGPT_votes'] += 1
+
         # Increase counter of how many times a user has voted
         temp[voter]['votes'] += 1
         self.db.set('assignment', temp)
-
+        self.db.set('question_prompt', temp_questions)
     # --------------------------------------------------------------------
     # ADD TO LOG 
     # --------------------------------------------------------------------
@@ -872,6 +884,15 @@ class QuiplashServicer(object):
                 if question_votes == self.num_players: 
                     player_votes += 1 # bonus point for unanimous vote 
             self.final_score[player] = player_votes * 100
+
+        gpt_votes = 0 
+        for question_id in self.assigned_questions_ids: 
+            gpt_votes_for_question = self._get_question_data(question_id)["chatGPT_votes"]
+            gpt_votes += gpt_votes_for_question
+            print(f"gpt votes {gpt_votes}")
+            if gpt_votes == self.num_players: 
+                gpt_votes += 1 # bonus point for unanimous vote
+        self.final_score[CHAT_GPT_USERNAME] = gpt_votes * 100
 
     def display_votes(self):
 
@@ -926,6 +947,8 @@ class QuiplashServicer(object):
             player_info = self.db.dget('assignment', player)
             player_address = f"{player_info['ip']}:{player_info['port']}"
             assigned_questions[player_address] = (questions_to_assign[idx], questions_to_assign[idx + self.num_players])
+
+        self.assigned_questions_ids = question_ids
         return assigned_questions
         
 
@@ -1154,13 +1177,10 @@ class QuiplashServicer(object):
                     self.answers_per_question[question_id].append({
                         'user': user, 
                         'answer': answer})
-                    # self.answers.append({'user': user, 
-                    #                     'answer': answer, 
-                    #                     'question_id': question_id})
             
             for question in self.answers_per_question:
                 self.answers_per_question[question].append({
-                    'user': 'chatGPT', 
+                    'user': CHAT_GPT_USERNAME, 
                     'answer': self._get_question_data(question)['chatGPT_answer']})
 
             #
@@ -1209,7 +1229,6 @@ class QuiplashServicer(object):
                     print("\nYou ran out of time! Moving to next question\n")
             
             pref_user = users_with_answer[int(fav_answer)-1] if fav_answer != EMPTY_ANS_DEFAULT else EMPTY_ANS_DEFAULT
-            print('\n\n user voted for:', pref_user)
             if not self.is_primary:
                 voter = quiplash_pb2.User(username=self.username)
                 votee = quiplash_pb2.User(username=pref_user)
