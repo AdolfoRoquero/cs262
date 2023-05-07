@@ -726,6 +726,7 @@ class QuiplashServicer(object):
             address = f"{assignments[player_ass]['ip']}:{assignments[player_ass]['port']}"
             # check for liveness from stubs 
             if player_ass != self.username and not self.replica_is_alive[address]:
+                print("\n\n\n is this fucking it up? \n\n\n")
                 continue
 
             active_player_votes += assignments[player_ass]['votes']
@@ -1138,9 +1139,7 @@ class QuiplashServicer(object):
                     # print(f"Notify voting start all ans {ip}")
                     notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.VOTING_START)
                     reply = stub.NotifyPlayers(notification)
-            
-            voting_setup_complete = True
-        
+                    
         #
         # VOTING PHASE
         #
@@ -1166,57 +1165,51 @@ class QuiplashServicer(object):
                 print(f"({ans_idx + 1}) {answer['answer']}")
                 users_with_answer.append(answer['user'])
             
-            voted = False
             try:
                 # Take timed input using inputimeout() function
                 fav_answer = inputimeout(prompt='Your favorite answer is: ', timeout=TIME_PER_VOTE)                
-                voted = True
                 if fav_answer not in ['1', '2', '3']:
                     # player skipped vote for question 
-                    print('Invalid vote was not registered. \n')
+                    print('Invalid vote was not registered. Moving to next question \n')
                     fav_answer = EMPTY_ANS_DEFAULT 
             except TimeoutOccurred:
-                if not voted:
+                    fav_answer = EMPTY_ANS_DEFAULT 
                     print("\nYou ran out of time! Moving to next question\n")
-            if voted:
-                if fav_answer == EMPTY_ANS_DEFAULT: 
-                    pref_user = EMPTY_ANS_DEFAULT
-                else: 
-                    pref_user = users_with_answer[int(fav_answer)-1] 
             
-            # (pref_user in users_with_answer):
-                if not self.is_primary:
-                    voter = quiplash_pb2.User(username=self.username)
-                    votee = quiplash_pb2.User(username=pref_user)
-                    grpc_vote = quiplash_pb2.Vote(voter=voter, 
-                                                    votee=votee,
-                                                    question_id=question_id)
-                    reply = self.stubs[self.primary_address].SendVote(grpc_vote)
-                else: 
-                    # CHECK  
-                    self.logger.info(f"VOTE RECV: Vote received from {self.username} to {pref_user} on question {question_id}")
-        
-                    # Add to log
-                    self._add_vote_to_log(self.username, question_id, pref_user)
+            pref_user = users_with_answer[int(fav_answer)-1] if fav_answer != EMPTY_ANS_DEFAULT else EMPTY_ANS_DEFAULT
+            
+            if not self.is_primary:
+                voter = quiplash_pb2.User(username=self.username)
+                votee = quiplash_pb2.User(username=pref_user)
+                grpc_vote = quiplash_pb2.Vote(voter=voter, 
+                                                votee=votee,
+                                                question_id=question_id)
+                reply = self.stubs[self.primary_address].SendVote(grpc_vote)
+            else: 
+                # CHECK  
+                self.logger.info(f"VOTE RECV: Vote received from {self.username} to {pref_user} on question {question_id}")
+    
+                # Add to log
+                self._add_vote_to_log(self.username, question_id, pref_user)
 
-                    # send votes from primary to replicas
-                    for rep_server in self.stubs:  
-                        try: 
-                            voter = quiplash_pb2.User(username=self.username)
-                            votee = quiplash_pb2.User(username=pref_user)
-                            grpc_vote = quiplash_pb2.Vote(voter=voter, 
-                                                           question_id=question_id,
-                                                           votee=votee) 
-                            
-                            reply = self.stubs[rep_server].Vote_StateUpdate(grpc_vote, timeout=0.5)
-                        except grpc.RpcError as e:
-                            self.replica_is_alive[rep_server] = False
-                            print(f"Exception: {rep_server} not alive on Vote_StateUpdate")
+                # send votes from primary to replicas
+                for rep_server in self.stubs:  
+                    try: 
+                        voter = quiplash_pb2.User(username=self.username)
+                        votee = quiplash_pb2.User(username=pref_user)
+                        grpc_vote = quiplash_pb2.Vote(voter=voter, 
+                                                        question_id=question_id,
+                                                        votee=votee) 
+                        
+                        reply = self.stubs[rep_server].Vote_StateUpdate(grpc_vote, timeout=0.5)
+                    except grpc.RpcError as e:
+                        self.replica_is_alive[rep_server] = False
+                        print(f"Exception: {rep_server} not alive on Vote_StateUpdate")
 
-                    # Persistance on db 
-                    self._execute_log()     
-                    # Triggers voting tallying phase if all votes have been received (or timed out)
-                    self._trigger_tallying()
+                # Persistance on db 
+                self._execute_log()     
+                # Triggers voting tallying phase if all votes have been received (or timed out)
+                self._trigger_tallying()
 
         #
         # TALLYING VOTES PHASE  
