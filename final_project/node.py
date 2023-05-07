@@ -26,8 +26,6 @@ def delete_log_files(dir=os.getcwd()):
             os.remove(path)	
 
 
-
-
 TIME_PER_ANSWER = 20
 TIME_PER_VOTE = 15
 EMPTY_ANS_DEFAULT = "NA"
@@ -1260,6 +1258,7 @@ def serve(port):
     quiplash_pb2_grpc.add_QuiplashServicer_to_server(quiplash_servicer, server)
     server.add_insecure_port(f'{IP}:{PORT}')
     server.start()
+
     # Start the client thread that takes terminal input with gRPC channel and stub
     client_thread = threading.Thread(target=quiplash_servicer.client_handle)
     client_thread.start()
