@@ -721,12 +721,15 @@ class QuiplashServicer(object):
         players_missing_votes = []
 
         for player_ass in assignments:
+            
             address = f"{assignments[player_ass]['ip']}:{assignments[player_ass]['port']}"
-            if self.replica_is_alive[address]:
-                active_player_votes += assignments[player_ass]['votes']
-                all_active_players += 1
-                if assignments[player_ass]['votes'] != 2:
-                    players_missing_votes.append(player_ass)
+            if player_ass != self.username and not self.replica_is_alive[address]:
+                continue
+
+            active_player_votes += assignments[player_ass]['votes']
+            all_active_players += 1
+            if assignments[player_ass]['votes'] != 2:
+                players_missing_votes.append(player_ass)
 
         expected_votes = len(all_active_players)**2
 
