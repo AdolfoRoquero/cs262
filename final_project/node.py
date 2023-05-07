@@ -27,7 +27,7 @@ def delete_log_files(dir=os.getcwd()):
 
 
 
-TIME_PER_ANSWER = 40
+TIME_PER_ANSWER = 20
 TIME_PER_VOTE = 15
 EMPTY_ANS_DEFAULT = "NA"
 STATIC_QUESTIONS_DB = "questions.db"
@@ -700,7 +700,7 @@ class QuiplashServicer(object):
             address = f"{assignments[user]['ip']}:{assignments[user]['port']}"
             if address == self.address or self.replica_is_alive[address]:
                 for question in assignments[user]['questions']:
-                    if assignments[user]['questions'][question]['answer'] == EMPTY_ANS_DEFAULT:
+                    if assignments[user]['questions'][question]['answer'] == "":
                         pending_users.add(user)
         return pending_users
 
@@ -779,7 +779,7 @@ class QuiplashServicer(object):
     def add_question_ass(self, username, question_id):
         """Add question assignment to the pickledb"""
         temp = self.db.get("assignment")
-        temp[username]['questions'][question_id] = {"answer": EMPTY_ANS_DEFAULT, "vote_count":0, "voters":[]}
+        temp[username]['questions'][question_id] = {"answer": "", "vote_count":0, "voters":[]}
         self.db.set("assignment", temp)
 
     def add_new_answer(self, username, question_id, answer_text):
