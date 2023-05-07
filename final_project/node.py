@@ -1028,7 +1028,7 @@ class QuiplashServicer(object):
         print("\n \t\t\t Time to answer questions! \t\t\t")
         print(f"\n\t\t\tReady... Set.... QUIPLASH \t\t\n")
         print('\n\n\n')
-        print(f"\t\tYou will be given 2 questions to answer in {TIME_TO_ANSWER}s each!\t\t")
+        print(f"\t\tYou will be given 2 questions to answer in {TIME_PER_ANSWER}s each!\t\t")
         time.sleep(3)
         for idx, question in enumerate(self.unanswered_questions):
             print(f"\n\nQuestion {idx+1}/{len(self.unanswered_questions)}    Topic: {question['category']}")
