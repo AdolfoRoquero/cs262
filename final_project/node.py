@@ -224,98 +224,193 @@ class QuiplashServicer(object):
 
     
     def JoinGame(self, request, context):
-        """SERVER RUN: Request to enter as a User into a game 
         """
-        if request.username in self._get_players(): 
-            self.logger.error(f"User {request.username} has already joined")
-            return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.FAILED)
-        else: 
-            # Add to log
-            self._add_new_user_to_log(request.username, request.ip_address, request.port)
-            
-            for rep_server in self.stubs:
-                try: 
-                    reply = self.stubs[rep_server].NewUser_StateUpdate(request, timeout=0.5)
-                except grpc.RpcError as e:
-                    self.replica_is_alive[rep_server] = False
-                    self.logger.error(f"Exception: {rep_server} not alive on NewUser_StateUpdate")
+        Receives a request to join the game from the SECONDARY node.
+        Enters a new user into the game.
 
-            
-            # Return existing players such that new joining players can recover the state players. 
-            assignments = self.db.get('assignment')
-            existing_players = []
-            for username in assignments:
-                existing_players.append(quiplash_pb2.User(username=username,
-                                                          ip_address=assignments[username]['ip'],
-                                                          port=assignments[username]['port']))
-            
-            # add stub 
-            self.create_stub(request.ip_address, request.port)
+        Running host:
+        -------------
+        Code in this function runs on PRIMARY node (called in SECONDARY).
 
-           
-            # Persistence Add to db
-            self._execute_log()
-            print(f'New player joined {request.username}, {len(self._get_players())} players in the room')
+        Parameters
+        ----------
+        request: User (quiplash.proto)
+            User (with username) that is attempting to join the game.
+        
+        Returns
+        -------
+        RequestReply:
+            Confirms receipt of the join request by the PRIMARY node.
+            Fails if the username is taken
+            Upon success, returns the list of existing users.
+        """
+        if self.is_primary:
+            if request.username in self._get_players(): 
+                self.logger.error(f"User {request.username} has already joined")
+                return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.FAILED)
+            else: 
+                # Add to log
+                self._add_new_user_to_log(request.username, request.ip_address, request.port)
+                
+                # Handle State Updates over replica nodes
+                for rep_server in self.stubs:
+                    try: 
+                        reply = self.stubs[rep_server].NewUser_StateUpdate(request, timeout=0.5)
+                    except grpc.RpcError as e:
+                        self.replica_is_alive[rep_server] = False
+                        self.logger.error(f"Exception: {rep_server} not alive on NewUser_StateUpdate")
 
-            return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.SUCCESS,
-                                              num_players=self.num_players,
-                                              existing_players=existing_players)
+                # Return existing players such that new joining players can recover the state players. 
+                assignments = self.db.get('assignment')
+                existing_players = []
+                for username in assignments:
+                    existing_players.append(quiplash_pb2.User(username=username,
+                                                            ip_address=assignments[username]['ip'],
+                                                            port=assignments[username]['port']))
+                # add stub 
+                self.create_stub(request.ip_address, request.port)
+
+                # Persistence Add to db
+                self._execute_log()
+                print(f'New player joined {request.username}, {len(self._get_players())} players in the room')
+
+                return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.SUCCESS,
+                                                num_players=self.num_players,
+                                                existing_players=existing_players)
+        else:
+            self.logger.error(f"ERROR: JoinGame request received on secondary node (primary only)")
+            return quiplash_pb2.RequestReply(reply='Failure', 
+                                             request_status=quiplash_pb2.FAILED) 
+    
+    
         
     def NewUser_StateUpdate(self, request, context):
-        """CLIENT RUN: Request to update replica state when a new user JOINS the game.
         """
-        self.logger.info(f"STATE UPDT at {self.server_id}: NewUser_StateUpdate User({request.username})")
+        Receives a state update with a new user that has 
+        joined the game from the PRIMARY node.
 
-        if self.is_primary:
-            self.logger.error(f"ERROR: STATE UPDT received at {self.server_id} when is_primary = {self.is_primary}")
-            raise RuntimeError('Only secondary should receive this state update')
-        else :
+        Running host:
+        -------------
+        Code in this function runs on SECONDARY node (called in PRIMARY).
+
+        Parameters
+        ----------
+        request: User (quiplash.proto)
+            User that has joined the game.
+        
+        Returns
+        -------
+        RequestReply:
+            Confirms receipt of state update by the SECONDARY node.
+        """
+        if not self.is_primary:
+            self.logger.info(f"STATE UPDT at {self.server_id}: NewUser_StateUpdate User({request.username})")
+            
             # Add to log
             self._add_new_user_to_log(request.username, request.ip_address, request.port)
             self.create_stub(request.ip_address, request.port)
             # Execute pending log entries
             self._execute_log()
-
             return quiplash_pb2.RequestReply(reply='OK', request_status=quiplash_pb2.SUCCESS)
-
+        
+        else:
+            self.logger.error(f"ERROR: NewUser State update request received on primary node (secondary only)")
+            raise RuntimeError('Only secondary should receive this state update')
 
     def SendQuestions(self, request, context):
-        """CLIENT RUN: Request triggered from primary server to other servers
         """
-        self.logger.info(f"QUESTIONS RECV: Questions received ({len(request.question_list)}) at {self.address}")
-        for question in request.question_list:
-            question_prompt = self.db.dget("question_prompt", question.question_id)
-            question_prompt['question_id'] = question.question_id
+        Receives a list of questions to answer from the PRIMARY node 
+        (assigned questions to this user only).
 
-            # Add to local Client Storage
-            self.unanswered_questions.append(question_prompt)
+        Running host:
+        -------------
+        Code in this function runs on SECONDARY node (called in PRIMARY).
 
-        return quiplash_pb2.RequestReply(reply = 'Success', 
-                                         request_status=quiplash_pb2.SUCCESS)
+        Parameters
+        ----------
+        request: QuestionList (quiplash.proto)
+            List of questions that this user was assigned.
+        
+        Returns
+        -------
+        RequestReply:
+            Confirms receipt of the question assignments by the SECONDARY node.
+        """
+        if not self.is_primary:
+            self.logger.info(f"QUESTIONS RECV: Questions received ({len(request.question_list)}) at {self.address}")
+            for question in request.question_list:
+                question_prompt = self.db.dget("question_prompt", question.question_id)
+                question_prompt['question_id'] = question.question_id
+
+                # Add to local Client Storage
+                self.unanswered_questions.append(question_prompt)
+
+            return quiplash_pb2.RequestReply(reply = 'Success', 
+                                            request_status=quiplash_pb2.SUCCESS)
+        else:
+            self.logger.error(f"ERROR: SendQuestions request received on primary node (secondary only)")
+            return quiplash_pb2.RequestReply(reply='Failure', 
+                                             request_status=quiplash_pb2.FAILED) 
     
     
     def QuestionAssignment_StateUpdate(self, request, context):
-        """CLIENT RUN: Request to update replica state when a question is ASSIGNED to a user.
         """
-        self.logger.info(f"STATE UPDT at {self.server_id}: QuestionAssigment")
+        Receives a state update with a list of question assignments from the PRIMARY node.
 
-        if self.is_primary:
-            self.logger.error(f"ERROR: STATE UPDT received at {self.server_id} when is_primary = {self.is_primary}")
-            raise RuntimeError('Only secondary should run state updates')
-        else :
-            for question in request.question_list:
-                # Add Question to log
-                self._add_question_ass_to_log(question.destinatary.username,
-                                              question.question_id)
-            
-            self._execute_log()
+        Running host:
+        -------------
+        Code in this function runs on PRIMARY node (called in SECONDARY).
 
-        return quiplash_pb2.RequestReply(reply = 'Success', 
-                                         request_status=quiplash_pb2.SUCCESS)
+        Parameters
+        ----------
+        request: QuestionList (quiplash.proto)
+            List of questions with user for which they were assigned.
+        
+        Returns
+        -------
+        RequestReply:
+            Confirms receipt of the question assignments by the SECONDARY node.
+        """
+        if not self.is_primary:
+            self.logger.info(f"STATE UPDT at {self.server_id}: QuestionAssigment")
+
+            if self.is_primary:
+                self.logger.error(f"ERROR: STATE UPDT received at {self.server_id} when is_primary = {self.is_primary}")
+                raise RuntimeError('Only secondary should run state updates')
+            else :
+                for question in request.question_list:
+                    # Add Question to log
+                    self._add_question_ass_to_log(question.destinatary.username,
+                                                question.question_id)
+                
+                self._execute_log()
+
+            return quiplash_pb2.RequestReply(reply = 'Success', 
+                                            request_status=quiplash_pb2.SUCCESS)
+        else:
+            self.logger.error(f"ERROR: Question assignment State update request received on primary node (secondary only)")
+            return quiplash_pb2.RequestReply(reply='Failure', 
+                                             request_status=quiplash_pb2.FAILED) 
+
     
     
     def SendAnswer(self, request, context):
-        """SERVER RUN: Request from other nodes to primary node with answer to question 
+        """
+        Request from secondary nodes to send an answer to a question to the primary node 
+
+        Running host:
+        -------------
+        Code in this function runs on PRIMARY node (called in SECONDARY).
+
+        Parameters
+        ----------
+        request: Answer (quiplash.proto)
+            Answer to a question
+        
+        Returns
+        -------
+        RequestReply:
+            Confirms receipt of the answer by the PRIMARY node.
         """
         if self.voting_started_prim: 
             # answer received after voting phase has started 
@@ -346,24 +441,69 @@ class QuiplashServicer(object):
     def UserAnswer_StateUpdate(self, request, context):
         """CLIENT RUN Request to update replica state when a user ANSWERS a question.
         """
-        self.logger.info(f"STATE UPDT at {self.server_id}: UserAnswer_StateUpdate")
         if self.is_primary:
-            self.logger.error(f"ERROR: STATE UPDT received at {self.server_id} when is_primary = {self.is_primary}")
-            raise RuntimeError('Only secondary should receive this state update')
+            self.logger.info(f"ANSWERS RECV: Received Answer from {request.respondent.username}")
+
+            # Add to log
+            self._add_answer_to_log(request.respondent.username, request.question_id, request.answer_text)
+            # Send State update to all replicas
+            for rep_server in self.stubs:  
+                try: 
+                    reply = self.stubs[rep_server].UserAnswer_StateUpdate(request, timeout=0.5)
+                except grpc.RpcError as e:
+                    self.replica_is_alive[rep_server] = False
+                    self.logger.error(f"Exception: {rep_server} not alive on UserAnswer_StateUpdate")
+
+            # Persistence on DB
+            self._execute_log()
+            # Triggers voting phase if all answers have been received
+            self._trigger_voting()
+
+            return quiplash_pb2.RequestReply(reply = 'Success', 
+                                            request_status=quiplash_pb2.SUCCESS)
         else:
+            self.logger.error(f"ERROR: SendAnswer request received on secondary node (primary only)")
+            return quiplash_pb2.RequestReply(reply='Failure', 
+                                             request_status=quiplash_pb2.FAILED) 
+        
+        
+    def UserAnswer_StateUpdate(self, request, context):
+        """
+        Receives a state update with an answer from the PRIMARY node.
+
+        Running host:
+        -------------
+        Code in this function runs on SECONDARY node (called in PRIMARY).
+
+        Parameters
+        ----------
+        request: Answer (quiplash.proto)
+            Answer to a question
+        
+        Returns
+        -------
+        RequestReply:
+            Confirms receipt of the state update by the SECONDARY node.
+        """
+
+        if not self.is_primary:
+            self.logger.info(f"STATE UPDT at {self.server_id}: UserAnswer_StateUpdate")
             # Add to log
             self._add_answer_to_log(request.respondent.username, request.question_id, request.answer_text)
             # Make persistence on client
             self._execute_log()
             return quiplash_pb2.RequestReply(reply='OK', request_status=quiplash_pb2.SUCCESS)
-
+        else:
+            self.logger.error(f"ERROR: Vote State update request received on primary node (secondary only)")
+            return quiplash_pb2.RequestReply(reply='Failure', 
+                                             request_status=quiplash_pb2.FAILED) 
     def NotifyPlayers(self, request, context):
         """
         Notify players for synchronization purposes.
 
         Running host:
         -------------
-        Code in this function runs on SECONDARY NODES.
+        Code in this function runs on SECONDARY NODES (called in PRIMARY).
 
         Parameters
         ----------
@@ -373,28 +513,32 @@ class QuiplashServicer(object):
         Returns
         -------
         RequestReply:
-            Indicates Success or Failure of the login attempt.
+            Confirms receipt of the notification by the SECONDARY node.
         """
-        request_name = quiplash_pb2.GameNotification.NotificationType.Name(request.type)
-        self.logger.info(f"NOTIFICATION RECV: Received {request_name} Notification at {self.username}")
-        if request.type == quiplash_pb2.GameNotification.GAME_START: 
-            with self.game_started_cv:
-                self.game_started = True
-                self.game_started_cv.notify_all()  
+        if not self.is_primary:
+            request_name = quiplash_pb2.GameNotification.NotificationType.Name(request.type)
+            self.logger.info(f"NOTIFICATION RECV: Received {request_name} Notification at {self.username}")
+            if request.type == quiplash_pb2.GameNotification.GAME_START: 
+                with self.game_started_cv:
+                    self.game_started = True
+                    self.game_started_cv.notify_all()  
 
-        if request.type == quiplash_pb2.GameNotification.VOTING_START: 
-            with self.voting_started_cv:
-                self.voting_started = True 
-                self.voting_started_cv.notify_all()
-        
-        if request.type == quiplash_pb2.GameNotification.SCORING_START: 
-            self.scoring_started = True
-            with self.vote_tallying_started_cv:
-                self.vote_tallying_started = True 
-                self.vote_tallying_started_cv.notify_all()
-        
-        return quiplash_pb2.RequestReply(reply='Success', 
-                                         request_status=quiplash_pb2.SUCCESS) 
+            if request.type == quiplash_pb2.GameNotification.VOTING_START: 
+                with self.voting_started_cv:
+                    self.voting_started = True 
+                    self.voting_started_cv.notify_all()
+            
+            if request.type == quiplash_pb2.GameNotification.SCORING_START: 
+                with self.vote_tallying_started_cv:
+                    self.vote_tallying_started = True 
+                    self.vote_tallying_started_cv.notify_all()
+            
+            return quiplash_pb2.RequestReply(reply='Success', 
+                                            request_status=quiplash_pb2.SUCCESS) 
+        else:
+            self.logger.error(f"ERROR: Synchronization notification received on primary node (secondary only)")
+            return quiplash_pb2.RequestReply(reply='Failure', 
+                                             request_status=quiplash_pb2.FAILED) 
     
     def SendAllAnswers(self, request, context):
         """
@@ -415,20 +559,26 @@ class QuiplashServicer(object):
             Indicates Success or Failure of the request attempt.
             Confirms receipt of answers by the SECONDARY node.
         """
-        self.logger.info(f"ALL ANSWERS RECV: Received all anwers ({len(request.answer_list)}) at {self.username}")
+        if not self.is_primary:
+            self.logger.info(f"ALL ANSWERS RECV: Received all anwers ({len(request.answer_list)}) at {self.username}")
 
-        for answer in request.answer_list:
-            self.logger.info(f"\t {answer.question_id}")
+            for answer in request.answer_list:
+                self.logger.info(f"\t {answer.question_id}")
 
-            self.answers_per_question[answer.question_id].append({
-                'user': answer.respondent.username, 
-                'answer': answer.answer_text})
-            self.answers.append({'user': answer.respondent.username, 
-                                 'answer': answer.answer_text, 
-                                 'question_id': answer.question_id})
+                self.answers_per_question[answer.question_id].append({
+                    'user': answer.respondent.username, 
+                    'answer': answer.answer_text})
+                self.answers.append({'user': answer.respondent.username, 
+                                    'answer': answer.answer_text, 
+                                    'question_id': answer.question_id})
+            
+            return quiplash_pb2.RequestReply(reply='Success', 
+                                            request_status=quiplash_pb2.SUCCESS)
+        else: 
+            self.logger.error(f"ERROR: ALL ANSWERS request received on primary node (secondary only)")
+            return quiplash_pb2.RequestReply(reply='Failure', 
+                                             request_status=quiplash_pb2.FAILED)
         
-        return quiplash_pb2.RequestReply(reply='Success', 
-                                         request_status=quiplash_pb2.SUCCESS) 
     def SendVote(self, request, context):
         """
         Receives an answer from a secondary node and manages replica state updates
@@ -447,30 +597,35 @@ class QuiplashServicer(object):
         RequestReply:
             Confirms receipt of vote by the PRIMARY node.
         """
-        if self.vote_tallying_started_prim: 
-            # vote received after vote tallying phase has started 
-            self.logger.info(f"ANSWERS RECV: Received Answer from {request.respondent.username} after scoring start, ignored")
-            return quiplash_pb2.RequestReply(reply = 'Failed, scoring has started', 
-                                            request_status=quiplash_pb2.FAILED)
-        else: 
-            self.logger.info(f"VOTE RECV: Vote received from {request.voter.username} to {request.votee.username} on question {request.question_id}")
-            
-            # Add to log
-            self._add_vote_to_log(request.voter.username, request.question_id, request.votee.username)
+        if self.is_primary:
+            if self.vote_tallying_started_prim: 
+                # vote received after vote tallying phase has started 
+                self.logger.info(f"VOTE RECV: Received Vote after scoring started from {request.voter.username} to {request.votee.username} on question {request.question_id}")
+                return quiplash_pb2.RequestReply(reply = 'Failed, scoring has started', 
+                                                request_status=quiplash_pb2.FAILED)
+            else: 
+                self.logger.info(f"VOTE RECV: Vote received from {request.voter.username} to {request.votee.username} on question {request.question_id}")
+                
+                # Add to log
+                self._add_vote_to_log(request.voter.username, request.question_id, request.votee.username)
 
-            # Send State update to all replicas
-            for rep_server in self.stubs:  
-                try: 
-                    reply = self.stubs[rep_server].Vote_StateUpdate(request, timeout=0.5)
-                except grpc.RpcError as e:
-                    self.replica_is_alive[rep_server] = False
-                    self.logger.error(f"Exception: {rep_server} not alive on Vote_StateUpdate")
+                # Send State update to all replicas
+                for rep_server in self.stubs:  
+                    try: 
+                        reply = self.stubs[rep_server].Vote_StateUpdate(request, timeout=0.5)
+                    except grpc.RpcError as e:
+                        self.replica_is_alive[rep_server] = False
+                        self.logger.error(f"Exception: {rep_server} not alive on Vote_StateUpdate")
 
-            self._execute_log() 
-            # Triggers tallying phase if all votes have been received
-            self._trigger_tallying()    
-            return quiplash_pb2.RequestReply(reply='Success', 
-                                            request_status=quiplash_pb2.SUCCESS) 
+                self._execute_log() 
+                # Triggers tallying phase if all votes have been received
+                self._trigger_tallying()    
+                return quiplash_pb2.RequestReply(reply='Success', 
+                                                request_status=quiplash_pb2.SUCCESS) 
+        else:
+            self.logger.error(f"ERROR: Send Vote request received on secondary node (primary only)")
+            return quiplash_pb2.RequestReply(reply='Failure', 
+                                             request_status=quiplash_pb2.FAILED) 
 
     def Vote_StateUpdate(self, request, context):
         """
@@ -490,14 +645,20 @@ class QuiplashServicer(object):
         RequestReply:
             Confirms receipt of state update by the PRIMARY node.
         """
-        self.logger.info(f"STATE UPDT at {self.server_id}: Vote_StateUpdate")
-        # Add to log
-        self._add_vote_to_log(request.voter.username, request.question_id, request.votee.username)
-        
-        self._execute_log()
+        if not self.is_primary:
+            self.logger.info(f"STATE UPDT at {self.server_id}: Vote_StateUpdate")
+            # Add to log
+            self._add_vote_to_log(request.voter.username, request.question_id, request.votee.username)
+            # Persist changes in DB
+            self._execute_log()
 
-        return quiplash_pb2.RequestReply(reply='Success', 
-                                         request_status=quiplash_pb2.SUCCESS) 
+            return quiplash_pb2.RequestReply(reply='Success', 
+                                            request_status=quiplash_pb2.SUCCESS) 
+        else: 
+            self.logger.error(f"ERROR: Vote State update request received on primary node (secondary only)")
+            return quiplash_pb2.RequestReply(reply='Failure', 
+                                             request_status=quiplash_pb2.FAILED) 
+
 
     def CheckLiveness(self, request, context):
         """Request sent periodically between servers to check for liveness.
@@ -506,16 +667,10 @@ class QuiplashServicer(object):
 
     def _trigger_voting(self):
         """
-        """
-        """
-        Check inf all answers have been received for all questions
+        Check if all answers have been received for all questions
         and trigger voting if it is the case. 
-        Voting is triggered by using a Conditional Variable which, on
-        Trigger voting if all answers have been received
-
-        Running host:
-        -------------
-        Code in this function runs on SECONDARY NODES (called in PRIMARY NODES).
+        Voting is triggered by using a Conditional Variable which, when change to True,
+        triggers the sending of a Notification to all SECONDARY NODES
 
         Parameters
         ----------
