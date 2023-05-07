@@ -377,13 +377,13 @@ class QuiplashServicer(object):
                 self.logger.error(f"ERROR: STATE UPDT received at {self.server_id} when is_primary = {self.is_primary}")
                 raise RuntimeError('Only secondary should run state updates')
             else :
-                self.assigned_questions_ids = []
+                self.unique_assigned_questions_ids = set()
                 for question in request.question_list:
                     # Add Question to log
                     self._add_question_ass_to_log(question.destinatary.username,
                                                 question.question_id)
                     # Add question to local memory for case of primary switching 
-                    self.assigned_questions_ids.append(question.question_id)
+                    self.unique_assigned_questions_ids.add(question.question_id)
                 
                 self._execute_log()
 
@@ -884,10 +884,9 @@ class QuiplashServicer(object):
             self.final_score[player] = player_votes * 100
 
         gpt_votes = 0 
-        for question_id in self.assigned_questions_ids: 
+        for question_id in self.unique_assigned_questions_ids: 
             gpt_votes_for_question = self._get_question_data(question_id)["chatGPT_votes"]
             gpt_votes += gpt_votes_for_question
-            print(f"gpt votes {gpt_votes}")    
         self.final_score[CHAT_GPT_USERNAME] = gpt_votes * 100
 
     def display_votes(self):
@@ -934,6 +933,8 @@ class QuiplashServicer(object):
 
         questions_to_assign = np.random.choice(question_ids, self.num_players, replace=False)
         np.random.shuffle(questions_to_assign) 
+        self.unique_assigned_questions_ids = set(questions_to_assign)
+        
         questions_to_assign = list(questions_to_assign)
         questions_to_assign = questions_to_assign + [questions_to_assign[self.num_players-1]] + questions_to_assign[:self.num_players-1]
         
@@ -944,7 +945,6 @@ class QuiplashServicer(object):
             player_address = f"{player_info['ip']}:{player_info['port']}"
             assigned_questions[player_address] = (questions_to_assign[idx], questions_to_assign[idx + self.num_players])
 
-        self.assigned_questions_ids = question_ids
         return assigned_questions
         
 
