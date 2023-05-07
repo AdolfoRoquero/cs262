@@ -26,8 +26,6 @@ def delete_log_files(dir=os.getcwd()):
             os.remove(path)	
 
 
-
-
 TIME_PER_ANSWER = 20
 TIME_PER_VOTE = 15
 EMPTY_ANS_DEFAULT = "NA"
@@ -1187,7 +1185,6 @@ class QuiplashServicer(object):
                 else: 
                     pref_user = users_with_answer[int(fav_answer)-1] 
             
-            # (pref_user in users_with_answer):
                 if not self.is_primary:
                     voter = quiplash_pb2.User(username=self.username)
                     votee = quiplash_pb2.User(username=pref_user)
@@ -1217,7 +1214,7 @@ class QuiplashServicer(object):
                             print(f"Exception: {rep_server} not alive on Vote_StateUpdate")
 
                     # Persistance on db 
-                    self._execute_log()     
+                    self._execute_log()
                     # Triggers voting tallying phase if all votes have been received (or timed out)
                     self._trigger_tallying()
 
@@ -1270,6 +1267,7 @@ def serve(port):
     quiplash_pb2_grpc.add_QuiplashServicer_to_server(quiplash_servicer, server)
     server.add_insecure_port(f'{IP}:{PORT}')
     server.start()
+
     # Start the client thread that takes terminal input with gRPC channel and stub
     client_thread = threading.Thread(target=quiplash_servicer.client_handle)
     client_thread.start()
