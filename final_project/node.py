@@ -992,7 +992,6 @@ class QuiplashServicer(object):
                         if reply.game_status == quiplash_pb2.JoinGameReply.WAITING: 
                             print(f"Username {username} taken, try again")
                         elif reply.game_status == quiplash_pb2.JoinGameReply.STARTED:
-                            print("here")
                             print("This game is already in progress! Start over and start new game or join other game.") 
                             os._exit(1)
                     else:
@@ -1156,9 +1155,14 @@ class QuiplashServicer(object):
                     self.answers_per_question[question_id].append({
                         'user': user, 
                         'answer': answer})
-                    self.answers.append({'user': user, 
-                                        'answer': answer, 
-                                        'question_id': question_id})
+                    # self.answers.append({'user': user, 
+                    #                     'answer': answer, 
+                    #                     'question_id': question_id})
+            
+            for question in self.answers_per_question:
+                self.answers_per_question[question].append({
+                    'user': 'chatGPT', 
+                    'answer': self._get_question_data(question)['chatGPT_answer']})
 
             #
             # Notifies other players voting phase begins
@@ -1206,7 +1210,7 @@ class QuiplashServicer(object):
                     print("\nYou ran out of time! Moving to next question\n")
             
             pref_user = users_with_answer[int(fav_answer)-1] if fav_answer != EMPTY_ANS_DEFAULT else EMPTY_ANS_DEFAULT
-            
+            print('\n\n user voted for:', pref_user)
             if not self.is_primary:
                 voter = quiplash_pb2.User(username=self.username)
                 votee = quiplash_pb2.User(username=pref_user)
