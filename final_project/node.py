@@ -703,17 +703,17 @@ class QuiplashServicer(object):
         active_player_answers = 0
         players_missing_answers = []
         assignments = self.db.get('assignment')
-        for player_ass in assignments:
-            address = f"{assignments[player_ass]['ip']}:{assignments[player_ass]['port']}"
+        for player in assignments:
+            address = f"{assignments[player]['ip']}:{assignments[player]['port']}"
             # check for liveness from stubs 
-            if player_ass != self.username and not self.replica_is_alive[address]:
+            if player != self.username and not self.replica_is_alive[address]:
                 print("\n\n\n is this fucking it up? \n\n\n")
                 continue
 
-            active_player_answers += assignments[player_ass]['answer_count']
+            active_player_answers += assignments[player]['answer_count']
             num_active_players += 1
-            if assignments[player_ass]['answer_count'] != QUESTIONS_PER_PLAYER:
-                players_missing_answers.append(player_ass)
+            if assignments[player]['answer_count'] != QUESTIONS_PER_PLAYER:
+                players_missing_answers.append(player)
 
         return players_missing_answers
 
@@ -728,17 +728,16 @@ class QuiplashServicer(object):
         active_player_votes = 0
         players_missing_votes = []
 
-        for player_ass in assignments:
-            address = f"{assignments[player_ass]['ip']}:{assignments[player_ass]['port']}"
+        for player in assignments:
+            address = f"{assignments[player]['ip']}:{assignments[player]['port']}"
             # check for liveness from stubs 
-            if player_ass != self.username and not self.replica_is_alive[address]:
-                print("\n\n\n is this fucking it up? \n\n\n")
+            if player != self.username and not self.replica_is_alive[address]:
                 continue
 
-            active_player_votes += assignments[player_ass]['votes']
+            active_player_votes += assignments[player]['votes']
             num_active_players += 1
-            if assignments[player_ass]['votes'] != self.num_players:
-                players_missing_votes.append(player_ass)
+            if assignments[player]['votes'] != self.num_players:
+                players_missing_votes.append(player)
 
         # number of unique questions is equal to the number of players (originally)
         expected_votes = num_active_players * self.num_players 
