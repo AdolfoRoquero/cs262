@@ -67,7 +67,8 @@ class LogActionType(Enum):
     VOTE_RECV = 'vote_received'
 
 class QuiplashServicer(object):
-    """Interface exported by the server.
+    """
+    Interface exported by the server.
     """
     def __init__(self, ip, port):
         
@@ -237,7 +238,6 @@ class QuiplashServicer(object):
                     reply = self.stubs[rep_server].NewUser_StateUpdate(request, timeout=0.5)
                 except grpc.RpcError as e:
                     self.replica_is_alive[rep_server] = False
-                    print(f"User {self.address_to_user[rep_server]} at {rep_server} has left the game")
                     self.logger.error(f"Exception: {rep_server} not alive on NewUser_StateUpdate")
 
             
@@ -327,7 +327,6 @@ class QuiplashServicer(object):
                 reply = self.stubs[rep_server].UserAnswer_StateUpdate(request, timeout=0.5)
             except grpc.RpcError as e:
                 self.replica_is_alive[rep_server] = False
-                print(f"User {self.address_to_user[rep_server]} at {rep_server} has left the game")
                 self.logger.error(f"Exception: {rep_server} not alive on UserAnswer_StateUpdate")
 
         # Persistence on DB
@@ -353,7 +352,23 @@ class QuiplashServicer(object):
             return quiplash_pb2.RequestReply(reply='OK', request_status=quiplash_pb2.SUCCESS)
 
     def NotifyPlayers(self, request, context):
-        """CLIENT RUN: Server notification """
+        """
+        Notify players for synchronization purposes.
+
+        Running host:
+        -------------
+        Code in this function runs on SECONDARY NODES.
+
+        Parameters
+        ----------
+        request: GameNotification (quiplash.proto)
+            GameNotification of a given type (GAME_START, VOTING_START, SCORING_START). 
+
+        Returns
+        -------
+        RequestReply:
+            Indicates Success or Failure of the login attempt.
+        """
         self.logger.info(f"NOTIFICATION RECV: Received Notification at {self.username}")
         if request.type == quiplash_pb2.GameNotification.GAME_START: 
             with self.game_started_cv:
@@ -375,7 +390,23 @@ class QuiplashServicer(object):
                                          request_status=quiplash_pb2.SUCCESS) 
     
     def SendAllAnswers(self, request, context):
-        """CLIENT RUN: Request from PRIMARY node to OTHER-NODES with all answers to all questions for voting.
+        """
+        Send all answers to secondary nodes (answers to all questions before for voting can begin)
+
+        Running host:
+        -------------
+        Code in this function runs on SECONDARY NODES (called in PRIMARY).
+
+        Parameters
+        ----------
+        request: AnswerList (quiplash.proto)
+            List of Answers for questions.
+
+        Returns
+        -------
+        RequestReply:
+            Indicates Success or Failure of the request attempt.
+            Confirms receipt of answers by the SECONDARY node.
         """
         self.logger.info(f"ALL ANSWERS RECV: Received all anwers ({len(request.answer_list)}) at {self.username}")
 
@@ -392,6 +423,26 @@ class QuiplashServicer(object):
         return quiplash_pb2.RequestReply(reply='Success', 
                                          request_status=quiplash_pb2.SUCCESS) 
     def SendVote(self, request, context):
+        """
+        Receives an answer from a secondary node and manages replica state updates
+
+        Running host:
+        -------------
+        Code in this function runs on PRIMARY NODE (called in SECONDARY NODES).
+
+        Parameters
+        ----------
+        request: Vote (quiplash.proto)
+            List of Answers for questions.
+
+        Returns
+        -------
+        RequestReply:
+            Indicates Success or Failure of the request attempt.
+            Confirms receipt of answers by the SECONDARY node.
+        """
+        
+        
         """Request from OTHER-NODES to PRIMARY node with vote for a given answer 
         """
         self.logger.info(f"VOTE RECV: Vote received from {request.voter.username} to {request.votee.username} on question {request.question_id}")
@@ -405,7 +456,6 @@ class QuiplashServicer(object):
                 reply = self.stubs[rep_server].Vote_StateUpdate(request, timeout=0.5)
             except grpc.RpcError as e:
                 self.replica_is_alive[rep_server] = False
-                print(f"User {self.address_to_user[rep_server]} at {rep_server} has left the game")
                 self.logger.error(f"Exception: {rep_server} not alive on Vote_StateUpdate")
 
         self._execute_log() 
@@ -475,7 +525,8 @@ class QuiplashServicer(object):
     
     def _get_players_pending_ans(self):
         """
-        Checks if an answer has been received for all assigned questions to all users
+        Checks if an answer has been received 
+        for all assigned questions to all users
         """
         pending_users = set()
         assignments = self.db.get('assignment')
@@ -490,7 +541,8 @@ class QuiplashServicer(object):
 
     def _get_num_pending_votes(self):
         """
-        Checks if an answer has been received for all assigned questions to all users
+        Checks if a vote has been received 
+        for all assigned answrers to all users
         """
         total_votes = 0 
         assignments = self.db.get('assignment')
@@ -500,17 +552,16 @@ class QuiplashServicer(object):
         all_active_users.append(self.username)
         expected_votes = len(all_active_users)**2
         active_user_votes = 0
+        
         for user_ass in assignments:
-            address = f"{assignments[user_ass]['ip']}:{assignments[user_ass]['port']}"
+            # address = f"{assignments[user_ass]['ip']}:{assignments[user_ass]['port']}"
             for question in assignments[user_ass]['questions']:
-                total_votes += assignments[user_ass]['questions'][question]['vote_count']
+                # total_votes += assignments[user_ass]['questions'][question]['vote_count']
                 # All users should have voted 
                 for user in assignments[user_ass]['questions'][question]['voters']:
                     if user in all_active_users:
                         active_user_votes += 1
-                
-
-        return (self.num_players ** 2) - total_votes, expected_votes-active_user_votes
+        return expected_votes - active_user_votes
     
     def _get_answers_as_grpc(self):
         """
@@ -552,23 +603,28 @@ class QuiplashServicer(object):
     # --------------------------------------------------------------------
     # ADD TO DB (Take from log to DB) 
     # --------------------------------------------------------------------
-    def add_new_player(self, username, ip_address, port): 
-        # add username to database 
+    def add_new_player(self, username, ip_address, port):
+        """Add new player to the pickledb and update state"""
+        # Add entry to db.
         self.db.dadd("assignment", (username, {"ip": ip_address, "port": port, "questions": {}}))
+        # Increase counter of total players.
         self.num_players += 1 
         self.address_to_user[f"{ip_address}:{port}"] = username
 
     def add_question_ass(self, username, question_id):
+        """Add question assignment to the pickledb"""
         temp = self.db.get("assignment")
         temp[username]['questions'][question_id] = {"answer": EMPTY_ANS_DEFAULT, "vote_count":0, "voters":[]}
         self.db.set("assignment", temp)
 
     def add_new_answer(self, username, question_id, answer_text):
+        """Add answer to the pickledb"""
         temp = self.db.get("assignment")
         temp[username]['questions'][question_id]['answer'] = answer_text
         self.db.set("assignment", temp)
 
     def add_new_vote(self, voter, votee, question_id):
+        """Add vote to the pickledb"""
         temp = self.db.get('assignment')
         temp[votee]['questions'][question_id]['vote_count'] += 1
         temp[votee]['questions'][question_id]['voters'].append(voter)
