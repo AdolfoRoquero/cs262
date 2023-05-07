@@ -549,9 +549,16 @@ class QuiplashServicer(object):
                 self.answers_per_question[answer.question_id].append({
                     'user': answer.respondent.username, 
                     'answer': answer.answer_text})
-                self.answers.append({'user': answer.respondent.username, 
-                                    'answer': answer.answer_text, 
-                                    'question_id': answer.question_id})
+                # TODO remove this comment once we are good 
+                # self.answers.append({'user': answer.respondent.username, 
+                #                     'answer': answer.answer_text, 
+                #                     'question_id': answer.question_id})
+
+            # Adding pre-generated chatgpt answers
+            for question in self.answers_per_question:
+                self.answers_per_question[question].append({
+                    'user': 'chatGPT', 
+                    'answer': self._get_question_data(question)['chatGPT_answer']})
             
             return quiplash_pb2.RequestReply(reply='Success', 
                                             request_status=quiplash_pb2.SUCCESS)
@@ -1190,7 +1197,7 @@ class QuiplashServicer(object):
             for ans_idx, answer in enumerate(self.answers_per_question[question_id]):
                 print(f"({ans_idx + 1}) {answer['answer']}")
                 users_with_answer.append(answer['user'])
-            
+
             try:
                 # Take timed input using inputimeout() function
                 fav_answer = inputimeout(prompt='Your favorite answer is: ', timeout=TIME_PER_VOTE)                
