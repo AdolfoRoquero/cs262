@@ -642,6 +642,11 @@ class QuiplashServicer(object):
         """
         return quiplash_pb2.LivenessResponse(status='OK')
 
+
+
+
+
+
     def _trigger_voting(self):
         """
         Check if all answers have been received for all questions
@@ -663,14 +668,14 @@ class QuiplashServicer(object):
         """
         Trigger voting if all answers have been received
         """
-        pend_votes = self._get_num_pending_votes()
+        pend_votes, pend_players = self._get_num_pending_votes()
         if pend_votes == 0:
             self.logger.info(f"\tAll votes received")
             with self.vote_tallying_started_cv:
                 self.vote_tallying_started = True
                 self.vote_tallying_started_cv.notify_all()
         else:
-            self.logger.info(f"\tMissing {pend_votes} votes")
+            self.logger.info(f"\tMissing {pend_votes} votes from {pend_players}")
             
 
     # --------------------------------------------------------------------
@@ -709,24 +714,24 @@ class QuiplashServicer(object):
         Checks if a vote has been received 
         for all assigned answrers to all users
         """
-        total_votes = 0 
         assignments = self.db.get('assignment')
 
-        # Compute difference between (# of active users)^2 vs # of votes from active users
-        all_active_users = [self.address_to_user[addr] for addr in self.replica_is_alive if self.replica_is_alive[addr]]
-        all_active_users.append(self.username)
-        expected_votes = len(all_active_users)**2
-        active_user_votes = 0
-        
-        for user_ass in assignments:
-            # address = f"{assignments[user_ass]['ip']}:{assignments[user_ass]['port']}"
-            for question in assignments[user_ass]['questions']:
-                # total_votes += assignments[user_ass]['questions'][question]['vote_count']
-                # All users should have voted 
-                for user in assignments[user_ass]['questions'][question]['voters']:
-                    if user in all_active_users:
-                        active_user_votes += 1
-        return expected_votes - active_user_votes
+        all_active_players = 1 # Already including current server
+        active_player_votes = 0
+        players_missing_votes = []
+
+        for player_ass in assignments:
+            address = f"{assignments[player_ass]['ip']}:{assignments[player_ass]['port']}"
+            if self.replica_is_alive[address]:
+                active_player_votes += assignments[player_ass]['votes']
+                all_active_players += 1
+                if assignments[player_ass]['votes'] != 2:
+                    players_missing_votes.append(player_ass)
+
+        expected_votes = len(all_active_players)**2
+
+        # Compute difference between (# of active players)^2 vs # of votes from active players
+        return expected_votes - active_player_votes, players_missing_votes
     
     def _get_answers_as_grpc(self):
         """
@@ -771,7 +776,10 @@ class QuiplashServicer(object):
     def add_new_player(self, username, ip_address, port):
         """Add new player to the pickledb and update state"""
         # Add entry to db.
-        self.db.dadd("assignment", (username, {"ip": ip_address, "port": port, "questions": {}}))
+        self.db.dadd("assignment", (username, {"ip": ip_address, 
+                                               "port": port, 
+                                               "questions": {}, 
+                                               "votes": 0}))
         # Increase counter of total players.
         self.num_players += 1 
         self.address_to_user[f"{ip_address}:{port}"] = username
@@ -791,8 +799,12 @@ class QuiplashServicer(object):
     def add_new_vote(self, voter, votee, question_id):
         """Add vote to the pickledb"""
         temp = self.db.get('assignment')
-        temp[votee]['questions'][question_id]['vote_count'] += 1
-        temp[votee]['questions'][question_id]['voters'].append(voter)
+        # Add x
+        if votee != EMPTY_ANS_DEFAULT:
+            temp[votee]['questions'][question_id]['vote_count'] += 1
+            temp[votee]['questions'][question_id]['voters'].append(voter)
+        # Increase counter of how many times a user has voted
+        temp[voter]['votes'] += 1
         self.db.set('assignment', temp)
 
     # --------------------------------------------------------------------
@@ -1042,7 +1054,6 @@ class QuiplashServicer(object):
                     answer_text = EMPTY_ANS_DEFAULT
                 answered = True
             except TimeoutOccurred:
-                """Code will enter this code regardless of timeout or not"""
                 if not answered:
                     answer_text = EMPTY_ANS_DEFAULT
                     print("You ran out of time! Moving to next question\n")
@@ -1149,18 +1160,25 @@ class QuiplashServicer(object):
                 print(f"({ans_idx + 1}) {answer['answer']}")
                 users_with_answer.append(answer['user'])
             
-            answered = False
+            voted = False
             try:
                 # Take timed input using inputimeout() function
                 fav_answer = inputimeout(prompt='Your favorite answer is: ', timeout=TIME_PER_VOTE)                
-                if fav_answer:
-                    answered = True
-                    pref_user = users_with_answer[int(fav_answer)-1]
-            except Exception:
-                """Code will enter this code regardless of timeout or not"""
-                if not answered:
+                voted = True
+                if fav_answer not in ['1', '2', '3']:
+                    # player skipped vote for question 
+                    print('Invalid vote was not registered. \n')
+                    fav_answer = EMPTY_ANS_DEFAULT 
+            except TimeoutOccurred:
+                if not voted:
                     print("\nYou ran out of time! Moving to next question\n")
-            if answered and (pref_user in users_with_answer):
+            if voted:
+                if fav_answer == EMPTY_ANS_DEFAULT: 
+                    pref_user = EMPTY_ANS_DEFAULT
+                else: 
+                    pref_user = users_with_answer[int(fav_answer)-1] 
+            
+            # (pref_user in users_with_answer):
                 if not self.is_primary:
                     voter = quiplash_pb2.User(username=self.username)
                     votee = quiplash_pb2.User(username=pref_user)
