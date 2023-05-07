@@ -30,6 +30,7 @@ TIME_PER_ANSWER = 20
 TIME_PER_VOTE = 15
 EMPTY_ANS_DEFAULT = "NA"
 STATIC_QUESTIONS_DB = "questions.db"
+QUESTIONS_PER_PLAYER = 2
 
 def liveness_check_thread(instance):
     while True:
@@ -711,7 +712,7 @@ class QuiplashServicer(object):
 
             active_player_answers += assignments[player_ass]['answer_count']
             num_active_players += 1
-            if assignments[player_ass]['answer_count'] != self.num_players:
+            if assignments[player_ass]['answer_count'] != QUESTIONS_PER_PLAYER:
                 players_missing_answers.append(player_ass)
 
         return players_missing_answers
