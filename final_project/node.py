@@ -17,7 +17,7 @@ import random
 import logging
 from enum import Enum
 from utils import check_valid_ip_format
-
+import sys
 
 
 def delete_log_files(dir=os.getcwd()):
@@ -244,10 +244,14 @@ class QuiplashServicer(object):
             Upon success, returns the list of existing users.
         """
         if self.is_primary:
+            game_status = quiplash_pb2.JoinGameReply.STARTED if self.game_started else quiplash_pb2.JoinGameReply.WAITING
             if request.username in self._get_players(): 
                 self.logger.error(f"User {request.username} has already joined")
-                return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.FAILED)
+                return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.FAILED, game_status=game_status)
             else: 
+                if self.game_started: 
+                    return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.FAILED, game_status=game_status)
+
                 # Add to log
                 self._add_new_user_to_log(request.username, request.ip_address, request.port)
                 
@@ -274,6 +278,7 @@ class QuiplashServicer(object):
                 print(f'New player joined {request.username}, {len(self._get_players())} players in the room')
 
                 return quiplash_pb2.JoinGameReply(request_status=quiplash_pb2.SUCCESS,
+                                                game_status=game_status,
                                                 num_players=self.num_players,
                                                 existing_players=existing_players)
         else:
@@ -972,7 +977,12 @@ class QuiplashServicer(object):
                                             port=self.port)
                     reply = self.stubs[self.primary_address].JoinGame(user)
                     if reply.request_status == quiplash_pb2.FAILED:
-                        print(f"Username {username} taken, try again")
+                        if reply.game_status == quiplash_pb2.JoinGameReply.WAITING: 
+                            print(f"Username {username} taken, try again")
+                        elif reply.game_status == quiplash_pb2.JoinGameReply.STARTED:
+                            print("here")
+                            print("This game is already in progress! Start over and start new game or join other game.") 
+                            os._exit(1)
                     else:
                         self.username = username
                         os.system('clear')

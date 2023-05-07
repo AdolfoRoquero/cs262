@@ -86,9 +86,13 @@ message RequestReply {
 // message JoinGameReply
 // Standard object for Server message replies to JoinGame Requests
 message JoinGameReply {
+    enum GameStatus {
+        WAITING = 0;
+        STARTED = 1;
+    }
     optional int32 num_players = 1; 
     RequestStatus request_status = 2;
-    optional string rerouted = 3; 
+    optional GameStatus game_status = 3; 
     repeated User existing_players = 4; // List of already existing users playing the game 
 }
 
