@@ -27,10 +27,9 @@ def delete_log_files(dir=os.getcwd()):
 
 
 
-TIME_TO_ANSWER = 40
-TIME_TO_VOTE = 15
+TIME_PER_ANSWER = 40
+TIME_PER_VOTE = 15
 EMPTY_ANS_DEFAULT = "NA"
-TIMEOUT_TO_RECEIVE_ALL_ANS = 60
 STATIC_QUESTIONS_DB = "questions.db"
 
 def liveness_check_thread(instance):
@@ -843,7 +842,6 @@ class QuiplashServicer(object):
                 if question_votes == self.num_players: 
                     player_votes += 1 # bonus point for unanimous vote 
             self.final_score[player] = player_votes * 100
-        return 
 
     def display_votes(self):
 
@@ -898,7 +896,6 @@ class QuiplashServicer(object):
             player_info = self.db.dget('assignment', player)
             player_address = f"{player_info['ip']}:{player_info['port']}"
             assigned_questions[player_address] = (questions_to_assign[idx], questions_to_assign[idx + self.num_players])
-            
         return assigned_questions
         
 
@@ -1092,7 +1089,7 @@ class QuiplashServicer(object):
             # Wait until voting started flag is set to True if all answers have been received or it timed out
             with self.voting_started_prim_cv:
                 while not self.voting_started_prim:
-                    val = self.voting_started_prim_cv.wait(timeout=TIMEOUT_TO_RECEIVE_ALL_ANS)
+                    val = self.voting_started_prim_cv.wait(timeout=TIME_PER_ANSWER * 2) # 2 questions per player 
                     self.voting_started_prim = True
 
             # 
@@ -1155,7 +1152,7 @@ class QuiplashServicer(object):
             answered = False
             try:
                 # Take timed input using inputimeout() function
-                fav_answer = inputimeout(prompt='Your favorite answer is: ', timeout=TIME_TO_VOTE)                
+                fav_answer = inputimeout(prompt='Your favorite answer is: ', timeout=TIME_PER_VOTE)                
                 if fav_answer:
                     answered = True
                     pref_user = users_with_answer[int(fav_answer)-1]
@@ -1223,14 +1220,13 @@ class QuiplashServicer(object):
             # Wait until voting started flag is set to True if all answers have been received or it timed out
             with self.vote_tallying_started_prim_cv:
                 while not self.vote_tallying_started_prim:
-                    val = self.vote_tallying_started_prim_cv.wait(timeout=TIME_TO_VOTE)
+                    val = self.vote_tallying_started_prim_cv.wait(timeout=TIME_PER_VOTE * self.num_players) # number of unique questions is defined by number of players
                     self.vote_tallying_started_prim = True
             
             #
             # Notifies other players voting phase begins
             # 
             for ip, stub in self.stubs.items():
-                # print(f"Notify voting scorings will start")
                 notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.SCORING_START)
                 reply = stub.NotifyPlayers(notification)
 
