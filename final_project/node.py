@@ -881,17 +881,13 @@ class QuiplashServicer(object):
             for question in questions:
                 question_votes = questions[question]['vote_count']
                 player_votes += question_votes
-                if question_votes == self.num_players: 
-                    player_votes += 1 # bonus point for unanimous vote 
             self.final_score[player] = player_votes * 100
 
         gpt_votes = 0 
         for question_id in self.assigned_questions_ids: 
             gpt_votes_for_question = self._get_question_data(question_id)["chatGPT_votes"]
             gpt_votes += gpt_votes_for_question
-            print(f"gpt votes {gpt_votes}")
-            if gpt_votes == self.num_players: 
-                gpt_votes += 1 # bonus point for unanimous vote
+            print(f"gpt votes {gpt_votes}")    
         self.final_score[CHAT_GPT_USERNAME] = gpt_votes * 100
 
     def display_votes(self):
