@@ -412,60 +412,36 @@ class QuiplashServicer(object):
         RequestReply:
             Confirms receipt of the answer by the PRIMARY node.
         """
-        if self.voting_started_prim: 
-            # answer received after voting phase has started 
-            self.logger.info(f"ANSWERS RECV: Received Answer from {request.respondent.username} after voting start, ignored")
-            return quiplash_pb2.RequestReply(reply = 'Failed, voting has started', 
-                                            request_status=quiplash_pb2.FAILED)
-        else: 
-            self.logger.info(f"ANSWERS RECV: Received Answer from {request.respondent.username}")
-
-            # Add to log
-            self._add_answer_to_log(request.respondent.username, request.question_id, request.answer_text)
-            # Send State update to all replicas
-            for rep_server in self.stubs:  
-                try: 
-                    reply = self.stubs[rep_server].UserAnswer_StateUpdate(request, timeout=0.5)
-                except grpc.RpcError as e:
-                    self.replica_is_alive[rep_server] = False
-                    self.logger.error(f"Exception: {rep_server} not alive on UserAnswer_StateUpdate")
-
-            # Persistence on DB
-            self._execute_log()
-            # Triggers voting phase if all answers have been received
-            self._trigger_voting()
-
-            return quiplash_pb2.RequestReply(reply = 'Success', 
-                                            request_status=quiplash_pb2.SUCCESS)
-    
-    def UserAnswer_StateUpdate(self, request, context):
-        """CLIENT RUN Request to update replica state when a user ANSWERS a question.
-        """
         if self.is_primary:
-            self.logger.info(f"ANSWERS RECV: Received Answer from {request.respondent.username}")
+            if self.voting_started_prim: 
+                # answer received after voting phase has started 
+                self.logger.info(f"ANSWERS RECV: Received Answer from {request.respondent.username} after voting start, ignored")
+                return quiplash_pb2.RequestReply(reply = 'Failed, voting has started', 
+                                                request_status=quiplash_pb2.FAILED)
+            else: 
+                self.logger.info(f"ANSWERS RECV: Received Answer from {request.respondent.username}")
 
-            # Add to log
-            self._add_answer_to_log(request.respondent.username, request.question_id, request.answer_text)
-            # Send State update to all replicas
-            for rep_server in self.stubs:  
-                try: 
-                    reply = self.stubs[rep_server].UserAnswer_StateUpdate(request, timeout=0.5)
-                except grpc.RpcError as e:
-                    self.replica_is_alive[rep_server] = False
-                    self.logger.error(f"Exception: {rep_server} not alive on UserAnswer_StateUpdate")
+                # Add to log
+                self._add_answer_to_log(request.respondent.username, request.question_id, request.answer_text)
+                # Send State update to all replicas
+                for rep_server in self.stubs:  
+                    try: 
+                        reply = self.stubs[rep_server].UserAnswer_StateUpdate(request, timeout=0.5)
+                    except grpc.RpcError as e:
+                        self.replica_is_alive[rep_server] = False
+                        self.logger.error(f"Exception: {rep_server} not alive on UserAnswer_StateUpdate")
 
-            # Persistence on DB
-            self._execute_log()
-            # Triggers voting phase if all answers have been received
-            self._trigger_voting()
+                # Persistence on DB
+                self._execute_log()
+                # Triggers voting phase if all answers have been received
+                self._trigger_voting()
 
-            return quiplash_pb2.RequestReply(reply = 'Success', 
-                                            request_status=quiplash_pb2.SUCCESS)
+                return quiplash_pb2.RequestReply(reply = 'Success', 
+                                                request_status=quiplash_pb2.SUCCESS)
         else:
             self.logger.error(f"ERROR: SendAnswer request received on secondary node (primary only)")
             return quiplash_pb2.RequestReply(reply='Failure', 
                                              request_status=quiplash_pb2.FAILED) 
-        
         
     def UserAnswer_StateUpdate(self, request, context):
         """
@@ -497,6 +473,7 @@ class QuiplashServicer(object):
             self.logger.error(f"ERROR: Vote State update request received on primary node (secondary only)")
             return quiplash_pb2.RequestReply(reply='Failure', 
                                              request_status=quiplash_pb2.FAILED) 
+                                             
     def NotifyPlayers(self, request, context):
         """
         Notify players for synchronization purposes.
@@ -661,7 +638,8 @@ class QuiplashServicer(object):
 
 
     def CheckLiveness(self, request, context):
-        """Request sent periodically between servers to check for liveness.
+        """
+        Request sent periodically between servers to check for liveness.
         """
         return quiplash_pb2.LivenessResponse(status='OK')
 
@@ -671,16 +649,6 @@ class QuiplashServicer(object):
         and trigger voting if it is the case. 
         Voting is triggered by using a Conditional Variable which, when change to True,
         triggers the sending of a Notification to all SECONDARY NODES
-
-        Parameters
-        ----------
-        request: Vote (quiplash.proto)
-            Vote for a given questions
-
-        Returns
-        -------
-        RequestReply:
-            Confirms receipt of state update by the PRIMARY node.
         """
 
         pend_players = self._get_players_pending_ans()
