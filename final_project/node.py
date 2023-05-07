@@ -17,6 +17,7 @@ from inputimeout import inputimeout
 from collections import defaultdict
 import random
 import logging
+import asyncio
 
 
 
@@ -316,21 +317,33 @@ class QuiplashServicer(object):
         self.db.set("assignment", temp)
         
 
-    def create_stub(self, node_ip_address, node_port):
+    async def create_stub(self, node_ip_address, node_port):
         address = f"{node_ip_address}:{node_port}"
         if address in self.stubs.keys():
             self.logger.error(f"ERROR: Stub already exists")
         else: 
-            channel = grpc.insecure_channel(address)
+            channel = grpc.aio.insecure_channel(address)
             stub = quiplash_pb2_grpc.QuiplashStub(channel)
             try:
-                grpc.channel_ready_future(channel).result(timeout=2)
+                await channel.channel_ready()
+                # grpc.channel_ready_future(channel).result(timeout=2)
                 self.stubs[address] = stub 
                 self.logger.info(f"STUB CREATED: Created stub to {address}")
                 return True
             except grpc.FutureTimeoutError:
                 self.logger.error(f"ERROR: Failed to connect to address {address}")
                 return False
+        #     channel = grpc.aio.insecure_channel(address)
+        #     stub = quiplash_pb2_grpc.QuiplashStub(channel)
+        #     try:
+        #         response = await stub.LivenessRequest()
+        #         message = response.message
+        #     except grpc.aio.AioRpcError as rpc_error:
+        #         assert rpc_error.code() == grpc.StatusCode.UNAVAILABLE
+        #         message = rpc_error
+        # return True 
+        
+            
         
             
 
