@@ -41,16 +41,20 @@ class GameNotification(_message.Message):
     def __init__(self, type: _Optional[_Union[GameNotification.NotificationType, str]] = ..., text: _Optional[str] = ...) -> None: ...
 
 class JoinGameReply(_message.Message):
-    __slots__ = ["existing_players", "num_players", "request_status", "rerouted"]
+    __slots__ = ["existing_players", "game_status", "num_players", "request_status"]
+    class GameStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = []
     EXISTING_PLAYERS_FIELD_NUMBER: _ClassVar[int]
+    GAME_STATUS_FIELD_NUMBER: _ClassVar[int]
     NUM_PLAYERS_FIELD_NUMBER: _ClassVar[int]
     REQUEST_STATUS_FIELD_NUMBER: _ClassVar[int]
-    REROUTED_FIELD_NUMBER: _ClassVar[int]
+    STARTED: JoinGameReply.GameStatus
+    WAITING: JoinGameReply.GameStatus
     existing_players: _containers.RepeatedCompositeFieldContainer[User]
+    game_status: JoinGameReply.GameStatus
     num_players: int
     request_status: RequestStatus
-    rerouted: str
-    def __init__(self, num_players: _Optional[int] = ..., request_status: _Optional[_Union[RequestStatus, str]] = ..., rerouted: _Optional[str] = ..., existing_players: _Optional[_Iterable[_Union[User, _Mapping]]] = ...) -> None: ...
+    def __init__(self, num_players: _Optional[int] = ..., request_status: _Optional[_Union[RequestStatus, str]] = ..., game_status: _Optional[_Union[JoinGameReply.GameStatus, str]] = ..., existing_players: _Optional[_Iterable[_Union[User, _Mapping]]] = ...) -> None: ...
 
 class LivenessRequest(_message.Message):
     __slots__ = []
