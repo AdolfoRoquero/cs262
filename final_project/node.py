@@ -112,21 +112,15 @@ class QuiplashServicer(object):
         self.game_started = False
         self.game_started_cv = threading.Condition()
 
-        self.voting_started = False 
-        self.voting_started_cv = threading.Condition()
-
         self.voting_started_prim = False 
         self.voting_started_prim_cv = threading.Condition()
-
+        self.voting_started = False 
+        self.voting_started_cv = threading.Condition()
+       
         self.vote_tallying_started_prim = False 
         self.vote_tallying_started_prim_cv = threading.Condition()
-
         self.vote_tallying_started = False 
         self.vote_tallying_started_cv = threading.Condition()
-
-        self.sent_answers = False
-        self.timer_started = False
-        self.scoring_started = False 
 
     def setup_primary(self):
         self.primary_ip = self.ip
@@ -144,8 +138,8 @@ class QuiplashServicer(object):
             try:
                 grpc.channel_ready_future(channel).result(timeout=2)
                 self.stubs[address] = stub
+                print(f"Add {address} to self.stubs")
                 self.replica_is_alive[address] = True
-
                 self.logger.info(f"STUB CREATED: Created stub to {address}")
                 return True
             except grpc.FutureTimeoutError:
@@ -285,9 +279,8 @@ class QuiplashServicer(object):
             self.logger.error(f"ERROR: JoinGame request received on secondary node (primary only)")
             return quiplash_pb2.RequestReply(reply='Failure', 
                                              request_status=quiplash_pb2.FAILED) 
-    
-    
-        
+
+
     def NewUser_StateUpdate(self, request, context):
         """
         Receives a state update with a new user that has 
@@ -964,15 +957,18 @@ class QuiplashServicer(object):
         elif host_mode == '2':
             # Secondary Node
             game_host_address = input("Enter game code: ").strip().lower()
-            while not game_host_address or len(game_host_address.split(':')) != 2:
-                print("\nCode must be of form `<ip_address>:<port>` \n")
+            while not check_valid_ip_format(game_host_address):
                 game_host_address = input("Enter game code: ").strip().lower()
             
-            # TODO Check Liveness for correct ip
-            self.primary_ip, self.primary_port = game_host_address.split(':')
-            self.primary_address = game_host_address
-            self.create_stub(self.primary_ip, self.primary_port)
-            self.replica_is_alive[self.primary_address]=True
+            ip, port = game_host_address.split(':')
+            if self.create_stub(ip, port):
+                self.primary_ip = ip
+                self.primary_port = port
+                self.primary_address = game_host_address
+                self.replica_is_alive[game_host_address] = True
+            else :
+                print(f"Connection Failed: unable to connect to game in {game_host_address}")
+                os._exit(1)
 
         #
         # JoinGame routine
