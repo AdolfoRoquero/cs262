@@ -41,14 +41,16 @@ For troubleshooting the installation of GRPC packages, go to https://grpc.io/doc
 
 ### With our helper bash scripts (Only if you have `ttab` installed)
 1. Give execution permissions to `setup.sh`:
-    - `chmod +x setup.sh`
-1. Run set up:
-    - `./setup.sh`
+    - Run `chmod +x setup.sh`
+1. Set up virtual environment and requirements:
+    - Run `./setup.sh`
 3. Give execution permissions to `run.sh`:
-    - `chmod +x run.sh`
+    - Run `chmod +x run.sh`
 4. Run 3 Node set up:
-    - `./run.sh`
+    - Run `./run.sh`
 This will open several terminals and run a P2P node in them. (see `run.sh`)
+5. Clean up generated log files
+    - Run `./clean.sh`
 
 ## Testing the code: Step-by-step guide
 - Socket:
