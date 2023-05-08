@@ -604,5 +604,5 @@ if __name__ == '__main__':
 
     args = parser.parse_args()  
     app = tkinterApp(args.port)
-    app.resizable(False, False)
+    # app.resizable(False, False)
     asyncio.run(app.mainloop())

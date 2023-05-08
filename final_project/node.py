@@ -1,5 +1,6 @@
 from copyreg import pickle
 from unicodedata import name
+from urllib import request
 import grpc 
 import quiplash_pb2
 import quiplash_pb2_grpc
@@ -19,10 +20,20 @@ from enum import Enum
 from utils import check_valid_ip_format
 import ascii_art
 import sys
+import asyncio
+from enum import Enum
 
 
-TIME_PER_ANSWER = 50
-TIME_PER_VOTE = 20
+
+def delete_log_files(dir=os.getcwd()):
+    for path in os.listdir(dir):
+        if path.endswith('.log'):
+            os.remove(path)	
+
+
+
+TIME_PER_ANSWER = 35
+TIME_PER_VOTE = 10
 EMPTY_ANS_DEFAULT = "NA"
 STATIC_QUESTIONS_DB = "questions.db"
 QUESTIONS_PER_PLAYER = 2
@@ -1305,7 +1316,7 @@ def serve(port):
 
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser()
-    servers = [1, 2, 3, 4, 5, 6, 7, 8]
+    servers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] 
     parser.add_argument("-P", "--port", help="Port of where server will be running", type=str, default='50051')
     args = parser.parse_args()
     serve(args.port) 
