@@ -47,10 +47,10 @@ def liveness_check_thread(instance):
                         instance.primary_address = min(alive_reps)
                         instance.primary_ip, instance.primary_port = instance.primary_address.split(":")
                         instance.is_primary = instance.primary_address == instance.address
-                        instance.logger.info(f"Primary server changed to {instance.primary_address}")
-                        print(f"Primary server changed to {instance.primary_address}")
+                        instance.logger.info(f"Primary server changed to {'myself ' if instance.is_primary else ''} : {instance.primary_address}")
+                        print(f"\nPrimary server changed to {'myself ' if instance.is_primary else ''} : {instance.primary_address}")
 
-        time.sleep(2)
+        time.sleep(1)
 
 
 class LogActionType(Enum):
@@ -246,12 +246,14 @@ class QuiplashServicer(object):
                 self._add_new_user_to_log(request.username, request.ip_address, request.port)
                 
                 # Handle State Updates over replica nodes
-                for rep_server in self.stubs:
-                    try: 
-                        reply = self.stubs[rep_server].NewUser_StateUpdate(request, timeout=0.5)
-                    except grpc.RpcError as e:
-                        self.replica_is_alive[rep_server] = False
-                        self.logger.error(f"Exception: {rep_server} not alive on NewUser_StateUpdate")
+                
+                for address, stub in self.stubs.items():
+                    if self.replica_is_alive[address]:
+                        try: 
+                            reply = stub.NewUser_StateUpdate(request, timeout=0.5)
+                        except grpc.RpcError as e:
+                            self.replica_is_alive[address] = False
+                            self.logger.error(f"Exception: {address} not alive on NewUser_StateUpdate")
 
                 # Return existing players such that new joining players can recover the state players. 
                 assignments = self.db.get('assignment')
@@ -419,13 +421,14 @@ class QuiplashServicer(object):
 
                 # Add to log
                 self._add_answer_to_log(request.respondent.username, request.question_id, request.answer_text)
-                # Send State update to all replicas
-                for rep_server in self.stubs:  
-                    try: 
-                        reply = self.stubs[rep_server].UserAnswer_StateUpdate(request, timeout=0.5)
-                    except grpc.RpcError as e:
-                        self.replica_is_alive[rep_server] = False
-                        self.logger.error(f"Exception: {rep_server} not alive on UserAnswer_StateUpdate")
+                # Send State update to all active replicas
+                for address, stub in self.stubs.items():
+                    if self.replica_is_alive[address]:
+                        try: 
+                            reply = stub.UserAnswer_StateUpdate(request, timeout=0.5)
+                        except grpc.RpcError as e:
+                            self.replica_is_alive[address] = False
+                            self.logger.error(f"Exception: {address} not alive on UserAnswer_StateUpdate")
 
                 # Persistence on DB
                 self._execute_log()
@@ -541,10 +544,6 @@ class QuiplashServicer(object):
                 self.answers_per_question[answer.question_id].append({
                     'user': answer.respondent.username, 
                     'answer': answer.answer_text})
-                # TODO remove this comment once we are good 
-                # self.answers.append({'user': answer.respondent.username, 
-                #                     'answer': answer.answer_text, 
-                #                     'question_id': answer.question_id})
 
             # Adding pre-generated chatgpt answers
             for question in self.answers_per_question:
@@ -590,12 +589,13 @@ class QuiplashServicer(object):
                 self._add_vote_to_log(request.voter.username, request.question_id, request.votee.username)
 
                 # Send State update to all replicas
-                for rep_server in self.stubs:  
-                    try: 
-                        reply = self.stubs[rep_server].Vote_StateUpdate(request, timeout=0.5)
-                    except grpc.RpcError as e:
-                        self.replica_is_alive[rep_server] = False
-                        self.logger.error(f"Exception: {rep_server} not alive on Vote_StateUpdate")
+                for address, stub in self.stubs.items():
+                    if self.replica_is_alive[address]:
+                        try: 
+                            reply = stub.Vote_StateUpdate(request, timeout=0.5)
+                        except grpc.RpcError as e:
+                            self.replica_is_alive[address] = False
+                            self.logger.error(f"Exception: {address} not alive on Vote_StateUpdate")
 
                 self._execute_log() 
                 # Triggers tallying phase if all votes have been received
@@ -1053,24 +1053,26 @@ class QuiplashServicer(object):
             # Send Assigned Questions to players
             # 
             for address, stub in self.stubs.items(): 
-                player_questions = assigned_questions[address]
-                grpc_question_list = self._get_questions_as_grpc_list(player_questions, self.username)
-                reply = stub.SendQuestions(quiplash_pb2.QuestionList(question_list=grpc_question_list))
+                if self.replica_is_alive[address]:
+                    player_questions = assigned_questions[address]
+                    grpc_question_list = self._get_questions_as_grpc_list(player_questions, self.username)
+                    reply = stub.SendQuestions(quiplash_pb2.QuestionList(question_list=grpc_question_list))
 
             # State Update for all Client Stubs with the assigned questions for all users
             all_question_list = []
             for address, question_ids in assigned_questions.items():
                 username = self.address_to_user[address]
                 all_question_list += self._get_questions_as_grpc_list(question_ids, username)
+
             grpc_all_question_list = quiplash_pb2.QuestionList(question_list=all_question_list)
-            for ip, stub in self.stubs.items():
-                if self.replica_is_alive[ip]:
+            for address, stub in self.stubs.items():
+                if self.replica_is_alive[address]:
                     state_update_reply = stub.QuestionAssignment_StateUpdate(grpc_all_question_list)
 
             self.game_started = True 
             # notifies other players game will begin 
-            for ip, stub in self.stubs.items(): 
-                if self.replica_is_alive[ip]:
+            for address, stub in self.stubs.items(): 
+                if self.replica_is_alive[address]:
                     notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.GAME_START)
                     reply = stub.NotifyPlayers(notification)
 
@@ -1113,17 +1115,18 @@ class QuiplashServicer(object):
                 # Add to log
                 self._add_answer_to_log(self.username, question['question_id'], answer_text)
                 # Send State update to all replicas
-                for rep_server in self.stubs:  
-                    try: 
-                        respondent = quiplash_pb2.User(username=self.username)
-                        grpc_answer = quiplash_pb2.Answer(respondent=respondent, 
-                                                            answer_text=answer_text, 
-                                                            question_id=question['question_id']) 
+                for address, stub in self.stubs.items():
+                    if self.replica_is_alive[address]:
+                        try: 
+                            respondent = quiplash_pb2.User(username=self.username)
+                            grpc_answer = quiplash_pb2.Answer(respondent=respondent, 
+                                                                answer_text=answer_text, 
+                                                                question_id=question['question_id']) 
                         
-                        reply = self.stubs[rep_server].UserAnswer_StateUpdate(grpc_answer, timeout=0.5)
-                    except grpc.RpcError as e:
-                        self.replica_is_alive[rep_server] = False
-                        print(f"Exception: {rep_server} not alive on UserAnswer_StateUpdate")
+                            reply = stub.UserAnswer_StateUpdate(grpc_answer, timeout=0.5)
+                        except grpc.RpcError as e:
+                            self.replica_is_alive[address] = False
+                            print(f"Exception: {address} not alive on UserAnswer_StateUpdate")
                 # Persistence on DB
                 self._execute_log()
                 # Triggers voting phase if all answers have been received
@@ -1229,18 +1232,19 @@ class QuiplashServicer(object):
                 self._add_vote_to_log(self.username, question_id, pref_user)
 
                 # send votes from primary to replicas
-                for rep_server in self.stubs:  
-                    try: 
-                        voter = quiplash_pb2.User(username=self.username)
-                        votee = quiplash_pb2.User(username=pref_user)
-                        grpc_vote = quiplash_pb2.Vote(voter=voter, 
-                                                        question_id=question_id,
-                                                        votee=votee) 
-                        
-                        reply = self.stubs[rep_server].Vote_StateUpdate(grpc_vote, timeout=0.5)
-                    except grpc.RpcError as e:
-                        self.replica_is_alive[rep_server] = False
-                        print(f"Exception: {rep_server} not alive on Vote_StateUpdate")
+                for address, stub in self.stubs.items():
+                    if self.replica_is_alive[address]: 
+                        try: 
+                            voter = quiplash_pb2.User(username=self.username)
+                            votee = quiplash_pb2.User(username=pref_user)
+                            grpc_vote = quiplash_pb2.Vote(voter=voter, 
+                                                            question_id=question_id,
+                                                            votee=votee) 
+                            
+                            reply = stub.Vote_StateUpdate(grpc_vote, timeout=0.5)
+                        except grpc.RpcError as e:
+                            self.replica_is_alive[address] = False
+                            print(f"Exception: {address} not alive on Vote_StateUpdate")
 
                 # Persistance on db 
                 self._execute_log()     
@@ -1280,8 +1284,9 @@ class QuiplashServicer(object):
             # Notifies other players voting phase begins
             # 
             for ip, stub in self.stubs.items():
-                notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.SCORING_START)
-                reply = stub.NotifyPlayers(notification)
+                if self.replica_is_alive[ip]:
+                    notification = quiplash_pb2.GameNotification(type=quiplash_pb2.GameNotification.SCORING_START)
+                    reply = stub.NotifyPlayers(notification)
 
         self.tally_votes()
         self.display_votes() 
