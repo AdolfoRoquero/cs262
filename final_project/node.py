@@ -29,6 +29,11 @@ QUESTIONS_PER_PLAYER = 2
 CHAT_GPT_USERNAME = 'chatGPT'
 
 def liveness_check_thread(instance):
+    """
+    Code run for liveness checks.
+    Runs on a separate thread that periodically 
+    checks that the GRPC servers are still running.
+    """
     while True:
         for rep_server_address in instance.stubs: 
             if rep_server_address != instance.address: 
