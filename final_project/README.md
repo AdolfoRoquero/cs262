@@ -4,7 +4,7 @@
 For our final project, we implemented Quip2P2lash, the peer-to-peer version of the famous Jackbox.TV game Quiplash
 
 This folder contains two implementations of the Quip2P2lash. 
-- TerminalBased Implementation under `terminal/` folder
+- TerminalBased Implementation
 - Tkinter-UI Implementation under `tkinter/` folder (WORK IN PROGRESS)
 
 ## Setup
@@ -37,7 +37,7 @@ For troubleshooting the installation of GRPC packages, go to https://grpc.io/doc
     - Optionally, you can provide a specific port of your machine to run the node on if you desire with the `--port` flag.
     - This will run ONE node of the peer to peer network. 
       If you want to run multiple nodes, activate 
-      the venv on another terminal and rerun `python terminal/node.py`
+      the venv on another terminal and rerun `python node.py`
 
 ### With our helper bash scripts (Only if you have `ttab` installed)
 1. Give execution permissions to `setup.sh`:
@@ -52,11 +52,9 @@ This will open several terminals and run a P2P node in them. (see `run.sh`)
 5. Clean up generated log files
     - Run `./clean.sh`
 
-## Testing the code: Step-by-step guide
-- Socket:
-    1. Run `python socket/server.py`
-- GRPC:
-    2. Run `python grpc/test.py`
+## Testing the code
+- Test:
+    1. Run `python unit_test.py`
 
 
 
