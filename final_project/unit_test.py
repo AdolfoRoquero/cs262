@@ -28,204 +28,160 @@ def test_valid_ip_checker():
     assert not check_valid_ip_format("a.b.c.d:e"), "Should have been rejected"
 
 
-def setup():
-    IP = socket.gethostbyname(socket.gethostname())
-    PORT = 6000
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    primary_node = QuiplashServicer(IP, PORT)
-    quiplash_pb2_grpc.add_QuiplashServicer_to_server(primary_node, server)
-    server.add_insecure_port(f'{IP}:{PORT}')
-    server.start()
+class TestClass():
+    def setup(self):
+        self.IP = socket.gethostbyname(socket.gethostname())
+        self.PORT = 6000
+        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        self.primary_node = QuiplashServicer(self.IP, self.PORT)
+        quiplash_pb2_grpc.add_QuiplashServicer_to_server(self.primary_node, self.server)
+        self.server.add_insecure_port(f'{self.IP}:{self.PORT}')
+        self.server.start()
 
-    primary_node = 
+        self.primary_node.setup_primary()
+
+        # Stub for random requests
+        self.stub = quiplash_pb2_grpc.QuiplashStub(grpc.insecure_channel(f"{self.IP}:{self.PORT}"))
+
+        # Default user 1
+        self.username1 = "TestUser1"
+        self.port1 = "60100"
+        self.address1 = f"{self.IP}:{self.port1}"
+        self.stub1 = quiplash_pb2_grpc.QuiplashStub(grpc.insecure_channel(f"{self.IP}:{self.PORT}"))
+        self.user1 = quiplash_pb2.User(username=self.username1, 
+                                ip_address=self.IP, 
+                                port=self.port1)
+
+        # Default user 2
+        self.username2 = "TestUser2"
+        self.port2 = "60200"
+        self.address2 = f"{self.IP}:{self.port2}"
+        self.stub2 = quiplash_pb2_grpc.QuiplashStub(grpc.insecure_channel(f"{self.IP}:{self.PORT}"))
+        self.user2 = quiplash_pb2.User(username=self.username2, 
+                                ip_address=self.IP, 
+                                port=self.port2)
+        
+        
+        reply = self.stub1.JoinGame(self.user1)
+        assert reply.request_status == quiplash_pb2.SUCCESS
+
+        reply = self.stub2.JoinGame(self.user2)
+        assert reply.request_status == quiplash_pb2.SUCCESS
+
+    def cleanup(self):
+        self.server.stop(grace=0)
+        del self.server
+        del self.primary_node
+        del self.stub2
+        del self.stub1
+
+
+    def test_JoinGame(self):
+        self.setup()
+
+        # Test adding a valid user
+        validusername = "ValidUsername"
+        validuser = quiplash_pb2.User(username=validusername, 
+                                      ip_address=self.IP, 
+                                      port="70000")
+        reply = self.stub.JoinGame(validuser)
+        assert reply.request_status == quiplash_pb2.SUCCESS
+        
+
+        # Test adding an invalid user
+        usernametaken = "TestUser1"
+        takenuser = quiplash_pb2.User(username=usernametaken, 
+                                      ip_address=self.IP, 
+                                      port=self.port1)
+        reply = self.stub.JoinGame(takenuser)
+        assert reply.request_status == quiplash_pb2.FAILED
+
+        # Test adding a user after game has started
+        self.primary_node.game_started = True
+
+        username_already_started = "GameAlreadyStarted"
+        user_already_started = quiplash_pb2.User(username=username_already_started, 
+                                      ip_address=self.IP, 
+                                      port="80000")
+        reply = self.stub.JoinGame(user_already_started)
+        assert reply.request_status == quiplash_pb2.FAILED
+        assert reply.game_status == quiplash_pb2.JoinGameReply.STARTED
+
+        self.cleanup()
+
+    def test_QuestionAssigner(self):
+        self.setup()
+
+        # Test assignment of questions for the 2 default users
+        self.primary_node.game_mode = 'all'
+        assigned_questions = self.primary_node.assign_questions()
+        assert self.address1 in assigned_questions
+        assert self.address2 in assigned_questions
+        assert len(assigned_questions[self.address1]) == 2
+        assert len(assigned_questions[self.address2]) == 2
+
+        # Test adding a 3rd valid user
+        validusername = "ValidUsername"
+        port = "70000"
+        address = f"{self.IP}:{port}"
+        validuser = quiplash_pb2.User(username=validusername, 
+                                      ip_address=self.IP, 
+                                      port=port)
+        reply = self.stub.JoinGame(validuser)
+        assert reply.request_status == quiplash_pb2.SUCCESS
+
+
+        # Test assignment of questions for the 3 users
+        self.primary_node.game_mode = 'all'
+        assigned_questions = self.primary_node.assign_questions()
+        assert self.address1 in assigned_questions
+        assert self.address2 in assigned_questions
+        assert address in assigned_questions
+        assert len(assigned_questions[self.address1]) == 2
+        assert len(assigned_questions[self.address2]) == 2
+        assert len(assigned_questions[address]) == 2
+        self.cleanup()
 
 
 
-    address1 = f"{IP}:{60100}"
-    stub1 = quiplash_pb2_grpc.QuiplashStub(grpc.insecure_channel(address1))
-
-    address2 = f"{IP}:{60200}"
-    stub2 = quiplash_pb2_grpc.QuiplashStub(grpc.insecure_channel(address2))
 
 
+    def test_AssignQuestions(self):
+        self.setup()
+
+        self.primary_node.game_started = True
+
+        player_questions = assigned_questions[address]
+        grpc_question_list = self._get_questions_as_grpc_list(player_questions, self.username)
+        destinatary = quiplash_pb2.User(username=username)
+        question_list = [] 
+        for question_id in question_ids:
+            question_dict = self.db.dget('question_prompt', question_id)
+            grpc_question = quiplash_pb2.Question(question_id=question_id, 
+                                                  question_text=question_dict['question'],
+                                                  topic=question_dict['category'],
+                                                  destinatary=destinatary)
+            question_list.append(grpc_question)
+        reply = self.stub1.SendQuestions(quiplash_pb2.QuestionList(question_list=grpc_question_list))
+
+        
+
+        username_already_started = "GameAlreadyStarted"
+        user_already_started = quiplash_pb2.User(username=username_already_started, 
+                                      ip_address=self.IP, 
+                                      port="80000")
+        reply = self.stub.JoinGame(user_already_started)
+        assert reply.request_status == quiplash_pb2.FAILED
+        assert reply.game_status == quiplash_pb2.JoinGameReply.STARTED
+
+        self.cleanup()
     
+    def run_tests(self):
+        self.test_JoinGame()
+        self.test_QuestionAssigner()
 
-    server.stop(grace=0)
-    
-
-
-    
-
-
-# class TestClient(unittest.TestCase):
-#     host = os.environ['CHAT_APP_SERVER_HOST']
-#     port = os.environ['CHAT_APP_SERVER_PORT']
-#     sleep_time = 3
-#     fake_users = ['A_user', 'B_user', 'C_user']
-
-#     @classmethod
-#     def setUpClass(cls):
-#         # Setup fake usernames
-#         with grpc.insecure_channel(f'{cls.host}:{cls.port}') as channel:
-#             for username in cls.fake_users: 
-#                 stub = chat_app_pb2_grpc.ChatAppStub(channel)
-#                 user = chat_app_pb2.User(username = username)
-#                 reply = stub.SignUp(user)
-#                 assert(1 == reply.request_status)
-
-#     @classmethod
-#     def tearDownClass(cls):
-#         # Setup fake usernames
-#         with grpc.insecure_channel(f'{cls.host}:{cls.port}') as channel:
-#             for username in cls.fake_users:
-#                 stub = chat_app_pb2_grpc.ChatAppStub(channel)
-#                 user = chat_app_pb2.User(username = username)
-#                 reply = stub.Login(user)
-#                 assert(1 == reply.request_status)
-#                 reply = stub.DeleteUser(user)
-#                 assert(1 == reply.request_status)
-
-#     def setUp(self):
-#         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
-#                 stub = chat_app_pb2_grpc.ChatAppStub(channel)
-#                 user = chat_app_pb2.User(username = 'root')
-#                 reply = stub.Login(user)
-#                 self.assertEqual(1, reply.request_status)
-            
-
-#     def test_invalid_login(self): 
-#         """
-#         Test that logging in with a random username (not registered) is not successful.
-#         """
-#         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
-#             stub = chat_app_pb2_grpc.ChatAppStub(channel)
-#             letters = string.ascii_lowercase
-#             random_username = ''.join(random.choice(letters) for i in range(10))
-#             user = chat_app_pb2.User(username = random_username)
-#             reply = stub.Login(user)
-#             self.assertEqual(0, reply.request_status)
-    
-#     def test_login(self): 
-#         """
-#         Test that logging in with a registered username is successfull 
-#         """
-#         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
-#             for username in self.fake_users:
-#                 stub = chat_app_pb2_grpc.ChatAppStub(channel)
-#                 user = chat_app_pb2.User(username = username)
-#                 reply = stub.Login(user)
-#                 self.assertEqual(1, reply.request_status)
-
-#     def test_signup(self): 
-#         """
-#         Test that signing up with a random username (not registered) is successfull 
-#         """
-#         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
-#             stub = chat_app_pb2_grpc.ChatAppStub(channel)
-#             letters = string.ascii_lowercase
-#             random_username = ''.join(random.choice(letters) for i in range(10))
-#             user = chat_app_pb2.User(username = random_username)
-#             reply = stub.SignUp(user)
-#             self.assertEqual(1, reply.request_status)
-#             username_filter = chat_app_pb2.ListAllRequest(username_filter = '*')
-#             reply = stub.ListAll(username_filter) 
-#             self.assertIn(random_username, [user.username for user in reply.users])
-            
-
-#     def test_invalid_signup(self): 
-#         """
-#         Test that signing up with a registered username is not successful 
-#         """
-#         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
-#             stub = chat_app_pb2_grpc.ChatAppStub(channel)
-#             user = chat_app_pb2.User(username = 'root')
-#             reply = stub.SignUp(user)
-#             self.assertEqual(0, reply.request_status)
-
-#     def test_listall(self): 
-#         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
-#             stub = chat_app_pb2_grpc.ChatAppStub(channel)
-#             username_filter = chat_app_pb2.ListAllRequest(username_filter = '*')
-#             reply = stub.ListAll(username_filter) 
-#             self.assertGreaterEqual(len(reply.users), 3)
-    
-#     def test_listall_filter(self): 
-#         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
-#             stub = chat_app_pb2_grpc.ChatAppStub(channel)
-#             username_filter = chat_app_pb2.ListAllRequest(username_filter = '*user')
-#             reply = stub.ListAll(username_filter) 
-#             for user in reply.users: 
-#                 self.assertRegex(user.username, '.*_user')
-#             self.assertEqual(len(reply.users), 3)
-
-
-#     def test_del_user(self): 
-#         """
-#         Test that deleting a user is successful 
-#         """
-#         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
-#             stub = chat_app_pb2_grpc.ChatAppStub(channel)
-#             user = chat_app_pb2.User(username = 'USER_TO_DELETE')
-#             reply = stub.SignUp(user)
-#             self.assertEqual(1, reply.request_status)
-#             reply = stub.DeleteUser(user)
-#             self.assertEqual(1, reply.request_status)
-#             username_filter = chat_app_pb2.ListAllRequest(username_filter = '*')
-#             reply = stub.ListAll(username_filter) 
-#             self.assertNotIn(user.username, [user.username for user in reply.users])
-
-#     def test_send_message(self): 
-#         """
-#         Test that a message can be sent from one user to another 
-#         """
-#         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
-#             stub = chat_app_pb2_grpc.ChatAppStub(channel)
-#             user1 = chat_app_pb2.User(username = self.fake_users[0])
-#             user2 = chat_app_pb2.User(username = self.fake_users[1])
-#             user3 = chat_app_pb2.User(username = self.fake_users[2])
-#             reply = stub.Login(user1)
-#             self.assertEqual(1, reply.request_status)
-            
-#             msg_datetime = Timestamp()
-#             msg_datetime.GetCurrentTime()
-#             msg_text = 'Hi test users!'
-#             chat_message = chat_app_pb2.ChatMessage(
-#                         sender = user1, destinataries = chat_app_pb2.UserList(users=[user2, user3]), 
-#                         text = msg_text, date = msg_datetime)
-#             reply = stub.SendMessage(chat_message)
-#             self.assertEqual(1, reply.request_status)
-
-#             for user in [user2, user3]: 
-#                 user_reply = stub.ReceiveMessage(user)  
-#                 for msg_received in user_reply: 
-#                     self.assertEqual(msg_text, msg_received.text) 
-
-#     def test_deliver_pending_messages(self): 
-#         """
-#         Test that a message can be sent from one user to another 
-#         """
-#         with grpc.insecure_channel(f'{self.host}:{self.port}') as channel:
-#             stub = chat_app_pb2_grpc.ChatAppStub(channel)
-#             username = 'root'
-#             user = chat_app_pb2.User(username = username)
-#             reply = stub.Login(user)
-#             self.assertEqual(1, reply.request_status)
-#             msg_datetime = Timestamp()
-#             msg_datetime.GetCurrentTime()
-#             msg_text = 'Testing delayed message delivery!'
-#             user2 = chat_app_pb2.User(username = self.fake_users[1])
-#             chat_message = chat_app_pb2.ChatMessage(
-#                         sender = user, destinataries = chat_app_pb2.UserList(users=[user2]), 
-#                         text = msg_text, date = msg_datetime)
-#             reply = stub.SendMessage(chat_message)
-#             self.assertEqual(1, reply.request_status)
-#             reply = stub.Login(user2)
-#             self.assertEqual(1, reply.request_status)
-#             reply = stub.ReceiveMessage(user2) 
-#             for msg_received in reply: 
-#                     self.assertEqual(msg_text, msg_received.text) 
 
 if __name__ == '__main__':
-
-    #test_valid_ip_checker()
-    setup()
+    tests = TestClass()
+    tests.run_tests()
+    test_valid_ip_checker()
