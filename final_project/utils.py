@@ -20,11 +20,24 @@ def check_valid_ip_format(input_text):
     # All bits must be between 0 and 3 digits 
     # and the numerical value from 0 to 255
     for idx, bit in enumerate(ip.split('.')):
-        if not (0 < len(bit) and len(bit) <= 3 and 0 <= int(bit) and 0 < 255):
+        if not (0 < len(bit) and len(bit) <= 3):
             print(f"\n<bit{idx}>: {bit} is invalid\n")
             return False
-    
-    if len(port) > 5:
+        
+        if not bit.isdigit():
+           print(f"\n<bit{idx}>: is not an integer")
+           return False
+        
+        if not (0 <= int(bit) and int(bit) <= 255):
+            print(f"\n<bit{idx}>: value {bit} is invalid [0,255]\n")
+            return False
+
+    if len(port) > 6:
+        print(f"\nPort length is too large\n")
+        return False
+
+    if not port.isdigit():
+        print(f"\nPort is not an integer\n")
         return False
 
     return True
